@@ -1,0 +1,246 @@
+---
+title: 'Devices'
+description: 'Manage device pairing for a bot. Devices are OpenClaw CLI or WebUI clients that connect to the bot gateway. Admins approve pending requests and can revoke access at any time.'
+---
+
+All routes require `Authorization: Bearer <app_token>`. The bot must be in `running` status.
+
+---
+
+## Device pairing flow
+
+<Steps>
+  <Step title="Device sends a pair request">
+    A client (CLI, desktop app, or web browser) connects to the bot gateway and submits a pairing request. The request enters a `pending` state.
+  </Step>
+  <Step title="Admin approves the request">
+    Call `POST /bots/:id/devices/:request_id/approve` with the `request_id` from the pending list. The device is moved to `paired` status.
+  </Step>
+  <Step title="Device connects">
+    Once approved, the device can authenticate and communicate with the bot gateway. Pairing is permanent until revoked.
+  </Step>
+  <Step title="Admin revokes access (optional)">
+    Call `DELETE /bots/:id/devices/:device_id` to revoke a paired device. All active sessions from that device are terminated.
+  </Step>
+</Steps>
+
+<Note>
+  The proxy layer can auto-approve device pairing requests when a valid `?token=` query parameter is present on the initial request. This is used by the ClawHost web UI to streamline browser-based access.
+</Note>
+
+---
+
+## List devices
+
+```
+GET /bot/api/v1/bots/:id/devices
+```
+
+Returns all pending and paired devices for the bot. Optionally filter by status or client mode.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Query parameters
+
+<ParamField query="status" type="string">
+  Filter by device status: `pending`, `paired`, or `revoked`. Returns all statuses if omitted.
+</ParamField>
+
+<ParamField query="client_mode" type="string">
+  Filter by client type: `web`, `cli`, `desktop`, etc. Returns all types if omitted.
+</ParamField>
+
+### Response
+
+<ResponseField name="bot_id" type="string">
+  The bot UUID.
+</ResponseField>
+
+<ResponseField name="devices" type="DeviceInfo[]">
+  Array of device objects.
+
+  <Expandable title="DeviceInfo">
+    <ResponseField name="request_id" type="string">
+      Pairing request ID. Only present for `pending` devices — use this value to approve.
+    </ResponseField>
+    <ResponseField name="device_id" type="string">
+      Unique device identifier. Use this value to revoke a paired device.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      `pending`, `paired`, or `revoked`.
+    </ResponseField>
+    <ResponseField name="role" type="string">
+      Device role (e.g., `user`, `operator`).
+    </ResponseField>
+    <ResponseField name="platform" type="string">
+      Operating system or client platform.
+    </ResponseField>
+    <ResponseField name="client_id" type="string">
+      Client application identifier.
+    </ResponseField>
+    <ResponseField name="client_mode" type="string">
+      Client type: `web`, `cli`, `desktop`, etc.
+    </ResponseField>
+    <ResponseField name="ip" type="string">
+      IP address of the device at request time. Only present for `pending` devices.
+    </ResponseField>
+    <ResponseField name="age" type="string">
+      Human-readable time since the request was made or approved (e.g., `5m ago`, `2h ago`).
+    </ResponseField>
+    <ResponseField name="connected" type="boolean">
+      Whether the device currently has an active connection. Only present for `paired` devices.
+    </ResponseField>
+    <ResponseField name="revoked" type="boolean">
+      `true` if all tokens for this device have been revoked.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/devices \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+```json
+{
+  "bot_id": "a1b2c3d4-...",
+  "devices": [
+    {
+      "request_id": "req_abc123",
+      "device_id": "dev_xyz789",
+      "status": "pending",
+      "role": "operator",
+      "platform": "linux",
+      "client_mode": "cli",
+      "ip": "192.168.1.42",
+      "age": "2m ago"
+    },
+    {
+      "device_id": "dev_def456",
+      "status": "paired",
+      "role": "user",
+      "platform": "macos",
+      "client_mode": "web",
+      "age": "3d ago",
+      "connected": true,
+      "revoked": false
+    }
+  ]
+}
+```
+
+### Filter pending CLI devices
+
+```bash
+curl "https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/devices?status=pending&client_mode=cli" \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+---
+
+## Approve a device
+
+```
+POST /bot/api/v1/bots/:id/devices/:request_id/approve
+```
+
+Approves a pending device pairing request. After approval, the device can authenticate and connect to the bot gateway.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="request_id" type="string" required>
+  The `request_id` from the pending device entry. Retrieve this from the [list devices](#list-devices) response.
+</ParamField>
+
+### Response
+
+<ResponseField name="bot_id" type="string">
+  The bot UUID.
+</ResponseField>
+
+<ResponseField name="request_id" type="string">
+  The request that was approved.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  `"device approved"`
+</ResponseField>
+
+```bash
+curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/devices/req_abc123/approve \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+```json
+{
+  "bot_id": "a1b2c3d4-...",
+  "request_id": "req_abc123",
+  "message": "device approved"
+}
+```
+
+---
+
+## Revoke a device
+
+```
+DELETE /bot/api/v1/bots/:id/devices/:device_id
+```
+
+Revokes all tokens for the specified device. Active connections from the device are terminated and the device cannot reconnect without a new pairing request.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="device_id" type="string" required>
+  The `device_id` from the paired device entry.
+</ParamField>
+
+### Query parameters
+
+<ParamField query="role" type="string">
+  Role token to revoke. Defaults to `operator`. Pass a specific role to revoke only that role's token while leaving others intact.
+</ParamField>
+
+### Response
+
+<ResponseField name="bot_id" type="string">
+  The bot UUID.
+</ResponseField>
+
+<ResponseField name="device_id" type="string">
+  The device that was revoked.
+</ResponseField>
+
+<ResponseField name="role" type="string">
+  The role that was revoked.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  `"device revoked"`
+</ResponseField>
+
+```bash
+curl -X DELETE https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/devices/dev_xyz789 \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+```json
+{
+  "bot_id": "a1b2c3d4-...",
+  "device_id": "dev_xyz789",
+  "role": "operator",
+  "message": "device revoked"
+}
+```

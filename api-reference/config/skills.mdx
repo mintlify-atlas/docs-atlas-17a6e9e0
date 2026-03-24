@@ -1,0 +1,158 @@
+---
+title: 'Skills'
+description: 'List, add, update, and remove skills from a running bot. Skills are Markdown files that extend bot behavior with custom instructions, tools, or workflows.'
+---
+
+All routes require `Authorization: Bearer <app_token>`. The bot must be in `running` status — skills are stored directly in the bot pod's filesystem.
+
+---
+
+## What are skills?
+
+A skill is a directory under `/app/.openclaw/workspace/skills/{name}/` inside the bot pod. The primary file in each skill directory is `SKILL.md`, which contains Markdown-formatted instructions that the agent reads when a task matches the skill's domain.
+
+Skills extend an agent's capabilities without changing the base bot configuration. Common uses:
+
+- Custom tool descriptions and usage instructions
+- Domain-specific knowledge and decision trees
+- Workflow templates and step-by-step procedures
+- Integration guides for external services
+
+<Note>
+  The bot must be running to manage skills. Skill files are written directly to the running pod and take effect immediately — no restart is required.
+</Note>
+
+---
+
+## List skills
+
+```
+GET /bot/api/v1/bots/:id/skills
+```
+
+Returns the names of all skills currently installed on the bot pod.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+<ResponseField name="(array)" type="SkillInfo[]">
+  Array of skill info objects.
+
+  <Expandable title="SkillInfo">
+    <ResponseField name="name" type="string">
+      The skill directory name.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/skills \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+```json
+[
+  { "name": "code-review" },
+  { "name": "sql-assistant" },
+  { "name": "customer-support" }
+]
+```
+
+---
+
+## Add or update a skill
+
+```
+PUT /bot/api/v1/bots/:id/skills/:name
+```
+
+Creates or replaces the `SKILL.md` file for the named skill. If the skill directory does not exist, it is created automatically.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Skill name. Used as the directory name on the pod filesystem. Use lowercase letters, numbers, and hyphens (e.g., `code-review`).
+</ParamField>
+
+### Request body
+
+<ParamField body="content" type="string" required>
+  Full Markdown content of the `SKILL.md` file. Describe what the skill does, when to invoke it, and any tools or instructions the agent should follow.
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  `"skill updated"`
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The skill name that was updated.
+</ResponseField>
+
+```bash
+curl -X PUT https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/skills/code-review \
+  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "# Code Review Skill\n\nYou are a thorough code reviewer. When asked to review code:\n\n1. Check for correctness and edge cases.\n2. Identify potential security issues.\n3. Suggest improvements for readability and performance.\n4. Provide specific, actionable feedback.\n"
+  }'
+```
+
+```json
+{
+  "message": "skill updated",
+  "name": "code-review"
+}
+```
+
+---
+
+## Delete a skill
+
+```
+DELETE /bot/api/v1/bots/:id/skills/:name
+```
+
+Removes the skill directory and all its files from the bot pod. The change takes effect immediately.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Name of the skill to delete.
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  `"skill deleted"`
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The skill name that was deleted.
+</ResponseField>
+
+```bash
+curl -X DELETE https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/skills/code-review \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+```json
+{
+  "message": "skill deleted",
+  "name": "code-review"
+}
+```

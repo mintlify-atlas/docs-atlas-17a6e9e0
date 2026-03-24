@@ -1,0 +1,85 @@
+---
+title: 'Get bot status'
+description: 'Get the current status of a bot, including live Kubernetes pod readiness. Automatically corrects stale status if the K8s Deployment no longer exists.'
+---
+
+`GET /bot/api/v1/bots/:id/status`
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for the app. Format: `Bearer <app-token>`
+</ParamField>
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string">
+  Bot UUID.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Bot display name.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current bot status. See [Status values](#status-values) below.
+</ResponseField>
+
+<ResponseField name="ready" type="boolean">
+  Whether the K8s Deployment has at least one ready replica. Always `false` for non-running bots.
+</ResponseField>
+
+<ResponseField name="endpoint" type="string">
+  Internal K8s service endpoint. Empty when the bot is not running.
+</ResponseField>
+
+## Status values
+
+| Status | Description |
+| --- | --- |
+| `created` | Bot record exists but has never been started. No K8s resources are allocated. |
+| `starting` | The bot was recently started and the K8s pod is initializing. |
+| `running` | The K8s Deployment and Service exist. The `ready` field indicates whether the pod is fully healthy. |
+| `stopped` | The bot was explicitly stopped. K8s resources have been removed; PVC data is preserved. |
+| `error` | An error occurred during a lifecycle operation. Check bot events or logs for details. |
+
+<Info>
+  When a bot's database status is `running` but the K8s Deployment no longer exists (e.g., it was deleted outside ClawHost), this endpoint automatically updates the status to `stopped` and clears the endpoint.
+</Info>
+
+<RequestExample>
+
+```bash cURL
+curl -s "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/status" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 (running and ready)
+{
+  "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "name": "my-bot",
+  "status": "running",
+  "ready": true,
+  "endpoint": "bot-e3b0c442.clawhost.svc.cluster.local:3000"
+}
+```
+
+```json 200 (stopped)
+{
+  "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "name": "my-bot",
+  "status": "stopped",
+  "ready": false,
+  "endpoint": ""
+}
+```
+
+</ResponseExample>

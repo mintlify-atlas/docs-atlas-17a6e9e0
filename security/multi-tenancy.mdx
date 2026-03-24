@@ -1,0 +1,227 @@
+---
+title: Multi-tenancy
+description: How ClawHost isolates tenants across apps, users, Kubernetes pods, and persistent storage.
+---
+
+ClawHost is built for multi-tenant deployments. Isolation is enforced at multiple layers: the API authentication model, the data model, the Kubernetes workload level, and the shared persistent volume layout.
+
+## Isolation layers
+
+<CardGroup cols={2}>
+  <Card title="App isolation" icon="grid-2x2">
+    Each App has its own `api_token`. An app token can only reach bots that belong to that app.
+  </Card>
+  <Card title="User isolation" icon="user">
+    Each Bot has a `user_id`. The `GET /bots?user_id=xxx` endpoint filters results to that user's bots within the authenticated app.
+  </Card>
+  <Card title="Pod isolation" icon="box">
+    Every bot runs in its own Kubernetes Deployment and Service with configurable CPU and memory limits.
+  </Card>
+  <Card title="Storage isolation" icon="hard-drive">
+    Bots share a PersistentVolumeClaim but each bot writes to its own subdirectory: `{base_path}/{bot_id}/`.
+  </Card>
+</CardGroup>
+
+## App model
+
+An App is the top-level tenant unit. Every app receives a unique API token on creation and owns zero or more bots.
+
+```go
+type App struct {
+    ID                string    `json:"id" gorm:"primaryKey;type:varchar(36)"`
+    Name              string    `json:"name" gorm:"type:varchar(255);not null"`
+    URL               string    `json:"url,omitempty" gorm:"type:varchar(500)"`
+    Description       string    `json:"description,omitempty" gorm:"type:text"`
+    OwnerEmail        string    `json:"owner_email,omitempty" gorm:"type:varchar(255)"`
+    APIToken          string    `json:"api_token" gorm:"type:varchar(64);uniqueIndex;not null"`
+    BotDomainTemplate string    `json:"bot_domain_template,omitempty" gorm:"type:varchar(500)"`
+    Status            string    `json:"status" gorm:"type:varchar(50);default:'active'"` // active, disabled
+    CreatedAt         time.Time `json:"created_at"`
+    UpdatedAt         time.Time `json:"updated_at"`
+}
+```
+
+| Field | Description |
+|---|---|
+| `id` | UUID primary key |
+| `name` | Human-readable app name |
+| `api_token` | 64-character hex token; unique across all apps |
+| `bot_domain_template` | Optional override for bot subdomain pattern, e.g. `https://{bot_id}.myapp.com` |
+| `status` | `active` or `disabled`; only active apps can authenticate |
+| `created_at` / `updated_at` | Timestamps managed by GORM |
+
+<Note>
+`api_token` has a database-level `uniqueIndex`, so token collisions are impossible even under concurrent creation.
+</Note>
+
+## Bot ownership model
+
+A Bot belongs to exactly one App (via `app_id`) and one user (via `user_id`). Both fields are indexed for efficient filtering.
+
+```go
+type Bot struct {
+    ID          string          `json:"id" gorm:"primaryKey;type:varchar(36)"`
+    AppID       string          `json:"app_id" gorm:"type:varchar(36);index;not null"`
+    UserID      string          `json:"user_id" gorm:"type:varchar(36);index;not null"`
+    Name        string          `json:"name" gorm:"type:varchar(255);not null"`
+    Slug        string          `json:"slug" gorm:"type:varchar(100);uniqueIndex"`
+    AccessToken string          `json:"access_token" gorm:"type:varchar(64)"`
+    Status      BotStatus       `json:"status" gorm:"type:varchar(50);default:'created'"`
+    Config      json.RawMessage `json:"config" gorm:"type:jsonb"`
+    Endpoint    string          `json:"endpoint" gorm:"type:varchar(255)"`
+    ExpiresAt   *time.Time      `json:"expires_at,omitempty" gorm:"type:timestamp;index"` // nil means never expires
+    CreatedAt   time.Time       `json:"created_at"`
+    UpdatedAt   time.Time       `json:"updated_at"`
+}
+```
+
+| Field | Description |
+|---|---|
+| `app_id` | Foreign key to the owning App |
+| `user_id` | Identifies which end-user owns this bot; used for per-user filtering |
+| `access_token` | Per-bot credential for CLI and gateway auth |
+| `expires_at` | Optional expiry timestamp; `nil` means the bot never expires |
+
+## Admin scope vs. app scope
+
+Access privileges depend entirely on which token type is presented:
+
+| Capability | Admin token | App token |
+|---|---|---|
+| Create / list / delete apps | Yes | No |
+| List all bots across all apps | Yes (via `GET /admin/bots`) | No |
+| Create bots in any app | Yes | No — bots are created under the authenticated app |
+| Access bots in own app | Yes | Yes |
+| Access bots in another app | Yes | No — `BotOwnerAuth` returns `403` |
+| Reset any app's token | Yes | No |
+| Reset own app's bots' tokens | Yes | Yes |
+| Upgrade bot images globally | Yes | No |
+
+This is enforced by three middleware functions registered in `cmd/server.go`:
+
+```go
+// App token required for all bot routes
+api := e.Group("/bot/api/v1")
+api.Use(authmw.BearerAuth())
+
+// App must own the bot
+botAPI := api.Group("/bots/:id")
+botAPI.Use(authmw.BotOwnerAuth())
+
+// Admin token required for all admin routes
+admin := e.Group("/bot/api/v1/admin")
+admin.Use(authmw.AdminAuth())
+```
+
+## Per-user bot filtering
+
+Within an app, bots can be further filtered by `user_id`. This is useful when a single app serves multiple end-users, each of whom should only see their own bots.
+
+```bash
+# List only bots belonging to a specific user
+curl "https://clawhost.example.com/bot/api/v1/bots?user_id=user-001" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+The underlying query in `model/bot.go` (`ListBotsByAppAndUser`) applies both `app_id` and `user_id` filters when both are non-empty:
+
+```go
+func ListBotsByAppAndUser(appID, userID string) ([]*Bot, error) {
+    query := util.GetDB()
+    if appID != "" {
+        query = query.Where("app_id = ?", appID)
+    }
+    if userID != "" {
+        query = query.Where("user_id = ?", userID)
+    }
+    // ...
+}
+```
+
+## Kubernetes pod isolation
+
+Each bot runs as a separate Kubernetes Deployment and Service in the namespace configured under `kubernetes.namespace` (default: `clawhost`). Pod-level resource limits are set globally in `config.toml` under the `[openclaw]` section:
+
+```toml
+[openclaw]
+image           = "1panel/openclaw:latest"
+gateway_port    = 18789
+cpu_limit       = "2000m"
+memory_limit    = "8Gi"
+cpu_request     = "500m"
+memory_request  = "1Gi"
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `cpu_limit` | `2000m` | Maximum CPU a bot pod may consume |
+| `memory_limit` | `8Gi` | Maximum memory a bot pod may consume |
+| `cpu_request` | `500m` | CPU reserved for a bot pod at scheduling time |
+| `memory_request` | `1Gi` | Memory reserved for a bot pod at scheduling time |
+
+<Info>
+Resource limits can also be set at the Helm level via `openclaw.cpuLimit`, `openclaw.memoryLimit`, `openclaw.cpuRequest`, and `openclaw.memoryRequest` values, which override the config file defaults.
+</Info>
+
+Each bot receives its own Kubernetes Service, so network traffic is routed directly to that bot's pod. ClawHost proxies external requests to the correct Service using either the `/proxy/:bot_id/*` path or subdomain routing (`{bot-id}.{bot_domain_suffix}`).
+
+## Persistent volume isolation
+
+All bot pods mount a single shared PersistentVolumeClaim (`clawhost-shared-data` by default). Within that volume, each bot is confined to its own subdirectory based on its ID:
+
+```
+{storage.base_path}/{bot_id}/
+```
+
+For example, with the default `base_path` of `/clawhost-data`:
+
+```
+/clawhost-data/
+  ├── 3f2a1b4c-0000-0000-0000-000000000001/   # bot A
+  ├── 3f2a1b4c-0000-0000-0000-000000000002/   # bot B
+  └── 3f2a1b4c-0000-0000-0000-000000000003/   # bot C
+```
+
+Configure storage in `config.toml`:
+
+```toml
+[storage]
+pvc_name  = "clawhost-shared-data"
+base_path = "/clawhost-data"
+```
+
+## Bot expiry
+
+Bots have an optional `expires_at` timestamp. When `nil`, the bot never expires. When set, the field is indexed for efficient expiry queries:
+
+```go
+ExpiresAt *time.Time `json:"expires_at,omitempty" gorm:"type:timestamp;index"`
+```
+
+This is useful for time-limited trial bots or ephemeral deployments where automatic cleanup is desired.
+
+## Kubernetes RBAC
+
+ClawHost manages Pods, Deployments, and Services in its namespace using a dedicated Kubernetes ServiceAccount. The RBAC resources are defined in `deploy/k8s/rbac.yaml` and scoped to the `clawhost` namespace — ClawHost holds no cluster-wide permissions.
+
+<Tip>
+When deploying via Helm, RBAC resources are created automatically. When using raw manifests (`deploy/k8s/`), apply `rbac.yaml` before `deployment.yaml` so the ServiceAccount exists before the Deployment references it.
+</Tip>
+
+## App status and access control
+
+An app's `status` field acts as a soft kill-switch. Setting `status` to `disabled` via `PUT /bot/api/v1/admin/apps/:id` prevents any further API calls using that app's token — `GetAppByAPIToken` in `model/app.go` filters on `status = 'active'`:
+
+```go
+func GetAppByAPIToken(token string) (*App, error) {
+    var app App
+    if err := util.GetDB().Where(
+        "api_token = ? AND status = ?", token, "active",
+    ).First(&app).Error; err != nil {
+        return nil, err
+    }
+    return &app, nil
+}
+```
+
+The app and all its bots remain in the database and can be re-enabled by setting `status` back to `active`.

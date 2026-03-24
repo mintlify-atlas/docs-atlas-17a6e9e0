@@ -1,0 +1,95 @@
+---
+title: Architecture overview
+description: How ClawHost sits between clients and a Kubernetes cluster to manage and proxy OpenClaw AI bot instances.
+---
+
+ClawHost is a Kubernetes-native platform that manages the full lifecycle of [OpenClaw](https://openclaw.ai/) bot instances and proxies all traffic to them. It exposes a RESTful Bot API, an Admin API, and an HTTP/WebSocket proxy — all compiled into a single Go binary that embeds a Next.js admin UI.
+
+## System diagram
+
+```
+┌────────┐       ┌───────────────────────┐       ┌─────────────────────┐
+│ Client │──────▶│       ClawHost        │──────▶│    K8s Cluster      │
+└────────┘       │                       │       │                     │
+    │            │  ┌─────────┐ ┌──────┐ │       │  ┌───────────────┐  │
+    │  Subdomain │  │ Bot API │ │Admin │ │  K8s  │  │ OpenClaw Pod  │  │
+    │  Routing   │  │         │ │ API  │ │  API  │  │               │  │
+    └───────────▶│  └─────────┘ └──────┘ │◀────▶│  │  Gateway      │  │
+                 │  ┌──────────────────┐ │       │  │  IM Channels  │  │
+                 │  │ Proxy (HTTP/WS)  │─┼──────▶│  │  Devices      │  │
+                 │  └──────────────────┘ │       │  └───────────────┘  │
+                 │           │           │       │  ┌───────────────┐  │
+                 └───────────┼───────────┘       │  │  Shared PVC   │  │
+                             │                   │  └───────────────┘  │
+                       ┌─────┴─────┐             └─────────────────────┘
+                       │PostgreSQL │
+                       └───────────┘
+```
+
+## Components
+
+<CardGroup cols={2}>
+  <Card title="Bot API" icon="robot">
+    RESTful API at `/bot/api/v1` for creating, starting, stopping, and configuring bot instances. All routes require a `Bearer` token scoped to an App.
+  </Card>
+  <Card title="Admin API" icon="shield">
+    Admin-only endpoints at `/bot/api/v1/admin` for managing Apps and triggering bot upgrades. Protected by `api.admin_token` from config.
+  </Card>
+  <Card title="Proxy (HTTP/WS)" icon="arrow-right-left">
+    Reverse proxy at `/proxy/:bot_id/*` and via subdomain routing. Handles both regular HTTP and WebSocket upgrades, forwarding traffic to the correct OpenClaw pod.
+  </Card>
+  <Card title="PostgreSQL" icon="database">
+    Stores all app and bot records via GORM. Bot configuration (models, channels, skills) is persisted as JSONB and synced bidirectionally with the pod.
+  </Card>
+  <Card title="Kubernetes cluster" icon="cloud">
+    Each bot runs as an isolated `Deployment` + `Service` (ClusterIP). ClawHost uses `client-go` to create, update, and delete these resources.
+  </Card>
+  <Card title="Admin UI" icon="layout-dashboard">
+    Next.js + shadcn/ui web panel statically exported and embedded into the Go binary, served at `/admin`. Supports app and bot management with token-based login.
+  </Card>
+</CardGroup>
+
+## Data flow
+
+The following describes the path of a client request through ClawHost:
+
+<Steps>
+  <Step title="Authentication">
+    Every request to `/bot/api/v1` carries `Authorization: Bearer <token>`. The `BearerAuth` middleware resolves the token against the `apps` table in PostgreSQL. Admin routes additionally verify against `api.admin_token`.
+  </Step>
+  <Step title="Bot API handler">
+    Handlers in `handler/api/v1` perform operations such as starting a bot, updating its config, or querying status. They read and write the `bots` table via GORM.
+  </Step>
+  <Step title="Kubernetes operations">
+    For lifecycle actions (start, stop, upgrade), the handler calls the `service/k8s` package, which uses `client-go` to create or delete `Deployment` and `Service` objects in the configured namespace.
+  </Step>
+  <Step title="Config sync">
+    Bot configuration is written to the pod's PVC at `/home/node/.openclaw/openclaw.json` via `kubectl exec`. When a bot is already running, only the changed section (e.g., `models`, `channels`, or `agents`) is merged into the existing file to avoid triggering an unnecessary gateway restart.
+  </Step>
+  <Step title="Proxy">
+    End-user traffic is routed to the bot pod through the proxy layer. The proxy resolves the target bot by ID or slug, retrieves the pod's `ClusterIP:port` from the Kubernetes Service, and forwards the request (or upgrades to WebSocket).
+  </Step>
+</Steps>
+
+## Key design decisions
+
+**No per-bot Ingress.** ClawHost acts as a single ingress point. Bot traffic is multiplexed through the proxy layer using either path-based routing (`/proxy/:bot_id/*`) or subdomain routing (`{bot-slug}.{bot_domain_suffix}`). This avoids the overhead of provisioning and managing one Ingress resource per bot.
+
+**Subdomain routing.** Each bot gets a unique slug (auto-generated from the first 8 characters of its UUID if not provided). The proxy extracts the slug from the `Host` header and looks up the bot record in PostgreSQL.
+
+**Bidirectional config sync.** The source of truth for bot configuration is PostgreSQL. When a section changes (models, channels, agents), only that section is patched into the live pod config file using a `node -e` script executed inside the container. The reverse path — reading the pod's config back into the database — is available via `SyncConfigToDatabase`.
+
+**Shared PVC.** All bot pods mount the same `PersistentVolumeClaim`, with each bot's data isolated under a per-bot subdirectory (keyed by `bot.ID`). This means bot data survives pod restarts and upgrades without requiring per-bot persistent volumes.
+
+**ClawHost does not need to run inside the cluster.** It only needs a kubeconfig that can reach the Kubernetes API server. For local development, set `kubernetes.local_dev = true` so the proxy uses the pod's `ClusterIP` directly instead of the in-cluster DNS name.
+
+## Technology stack
+
+| Layer | Technology |
+|---|---|
+| HTTP server | Go + [Echo](https://echo.labstack.com/) v4 |
+| Database ORM | [GORM](https://gorm.io/) with PostgreSQL |
+| Kubernetes client | [client-go](https://github.com/kubernetes/client-go) |
+| WebSocket proxy | [gorilla/websocket](https://github.com/gorilla/websocket) |
+| Configuration | [Viper](https://github.com/spf13/viper) (TOML) |
+| Admin UI | Next.js + shadcn/ui, statically embedded in binary |

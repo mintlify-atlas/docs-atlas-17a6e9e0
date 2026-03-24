@@ -1,0 +1,60 @@
+---
+title: 'Delete bot'
+description: 'Permanently delete a bot and its Kubernetes resources. This action cannot be undone.'
+---
+
+`DELETE /bot/api/v1/bots/:id`
+
+<Warning>
+  Deleting a bot is irreversible. The bot record is removed from the database and, if the bot was running, its Kubernetes Deployment and Service are deleted immediately.
+</Warning>
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for the app. Format: `Bearer <app-token>`
+</ParamField>
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+## Behavior
+
+When a delete request is received:
+
+1. If the bot's status is `running`, the K8s Deployment and Service are deleted first.
+2. The bot record is removed from the database.
+
+Stored data on the shared PVC (bot conversation history, custom skills, etc.) is not automatically removed in the current version.
+
+## Response
+
+<ResponseField name="message" type="string">
+  Confirmation message: `"bot deleted"`.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -s -X DELETE "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "message": "bot deleted"
+}
+```
+
+```json 403
+{
+  "error": "not authorized"
+}
+```
+
+</ResponseExample>

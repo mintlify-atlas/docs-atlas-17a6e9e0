@@ -1,0 +1,135 @@
+---
+title: 'Get bot'
+description: 'Retrieve a single bot by ID, including live Kubernetes deployment status when the bot is running.'
+---
+
+`GET /bot/api/v1/bots/:id`
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for the app. Format: `Bearer <app-token>`
+</ParamField>
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique bot UUID.
+</ResponseField>
+
+<ResponseField name="app_id" type="string">
+  ID of the app that owns this bot.
+</ResponseField>
+
+<ResponseField name="user_id" type="string">
+  ID of the user who owns this bot.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Display name.
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  URL-friendly identifier used in subdomain routing.
+</ResponseField>
+
+<ResponseField name="access_token" type="string">
+  Bot-level access token for CLI commands and token authentication.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current bot status: `created`, `starting`, `running`, `stopped`, or `error`.
+</ResponseField>
+
+<ResponseField name="config" type="object">
+  Full OpenClaw configuration stored for this bot. When the bot is running and its deployment is ready, the config is synced from the live pod before being returned.
+</ResponseField>
+
+<ResponseField name="endpoint" type="string">
+  Internal K8s service endpoint. Empty when the bot is not running.
+</ResponseField>
+
+<ResponseField name="deployment_status" type="object">
+  Present only when `status` is `running`. Contains live Kubernetes deployment information.
+
+  <Expandable title="deployment_status properties">
+    <ResponseField name="status" type="string">
+      Deployment readiness state (e.g., `ready`, `progressing`).
+    </ResponseField>
+    <ResponseField name="ready_replicas" type="number">
+      Number of replicas that are ready.
+    </ResponseField>
+    <ResponseField name="desired_replicas" type="number">
+      Number of replicas desired.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="image" type="string">
+  Current OpenClaw container image running in the K8s deployment. Present only when `status` is `running`.
+</ResponseField>
+
+<ResponseField name="latest_image" type="string">
+  Latest configured OpenClaw image. Compare against `image` to determine if an upgrade is available. Present only when `status` is `running`.
+</ResponseField>
+
+<ResponseField name="image_up_to_date" type="boolean">
+  Whether the running image matches the latest configured image. Present only when `status` is `running`.
+</ResponseField>
+
+<ResponseField name="expires_at" type="string">
+  Expiry timestamp, or `null` if the bot never expires.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 creation timestamp.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO 8601 last-updated timestamp.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -s "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "app_id": "a1b2c3d4-0000-0000-0000-000000000001",
+  "user_id": "user-001",
+  "name": "my-bot",
+  "slug": "my-bot",
+  "access_token": "4a7f92bd1e05c3f8a2d6b1e7f3c9a0d2",
+  "status": "running",
+  "config": {
+    "model": "claude-sonnet-4-20250514",
+    "api_key": "sk-ant-xxx"
+  },
+  "endpoint": "bot-e3b0c442.clawhost.svc.cluster.local:3000",
+  "deployment_status": {
+    "status": "ready",
+    "ready_replicas": 1,
+    "desired_replicas": 1
+  },
+  "image": "1panel/openclaw:latest",
+  "latest_image": "1panel/openclaw:latest",
+  "image_up_to_date": true,
+  "expires_at": null,
+  "created_at": "2026-03-24T10:00:00Z",
+  "updated_at": "2026-03-24T10:05:00Z"
+}
+```
+
+</ResponseExample>

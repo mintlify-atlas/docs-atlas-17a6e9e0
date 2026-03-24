@@ -1,0 +1,370 @@
+---
+title: 'IM channels'
+description: 'Connect a bot to instant messaging platforms including Telegram, Slack, Discord, Teams, LINE, Feishu, and WeChat. Manage pairing and paired users per channel.'
+---
+
+All routes require `Authorization: Bearer <app_token>`. The bot must be in `running` status — channel configuration is applied live to the running pod.
+
+---
+
+## Supported channels
+
+| Channel | `channel` value | Auth fields |
+|---|---|---|
+| Telegram | `telegram` | `botToken` |
+| Slack | `slack` | `botToken`, `appToken` |
+| Discord | `discord` | `botToken` |
+| Microsoft Teams | `teams` | `botToken`, `appPassword` |
+| LINE | `line` | `botToken`, `channelSecret` |
+| Feishu / Lark | `feishu` | `appId`, `appSecret` |
+| WeChat | `wechat` | QR code flow (see below) |
+
+---
+
+## Add a channel
+
+```
+POST /bot/api/v1/bots/:id/channels
+```
+
+Adds or reconfigures an IM channel account on the running bot.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Request body
+
+<ParamField body="channel" type="string" required>
+  Channel type identifier (see table above).
+</ParamField>
+
+<ParamField body="account" type="string">
+  Account name for multi-account support. Defaults to `"default"`. Use a custom name when connecting multiple accounts of the same channel type.
+</ParamField>
+
+<ParamField body="botToken" type="string">
+  Bot token. Required for Telegram, Discord, Slack (bot token), and Teams.
+</ParamField>
+
+<ParamField body="appToken" type="string">
+  Slack app-level token (begins with `xapp-`). Required for Slack socket mode.
+</ParamField>
+
+<ParamField body="appId" type="string">
+  Feishu app ID.
+</ParamField>
+
+<ParamField body="appSecret" type="string">
+  Feishu app secret.
+</ParamField>
+
+<ParamField body="appPassword" type="string">
+  Teams app password.
+</ParamField>
+
+<ParamField body="channelSecret" type="string">
+  LINE channel secret.
+</ParamField>
+
+<ParamField body="dmPolicy" type="string">
+  How the bot handles direct messages: `open` (respond to everyone), `pairing` (require device pairing), `allowlist` (only `allowFrom` list), or `disabled`. Defaults to `open`.
+</ParamField>
+
+<ParamField body="groupPolicy" type="string">
+  How the bot behaves in group chats: `open`, `allowlist`, or `disabled`.
+</ParamField>
+
+<ParamField body="allowFrom" type="string[]">
+  List of user IDs or group IDs allowed to interact with the bot (used when `dmPolicy` or `groupPolicy` is `allowlist`).
+</ParamField>
+
+<ParamField body="enabled" type="boolean">
+  Enable or disable the channel account. Defaults to `true`.
+</ParamField>
+
+<ParamField body="extra" type="object">
+  Any additional channel-specific configuration fields.
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  `"channel added successfully"`
+</ResponseField>
+
+<ResponseField name="channel" type="string">
+  The channel type that was added.
+</ResponseField>
+
+<ResponseField name="account" type="string">
+  The account name (defaults to `"default"`).
+</ResponseField>
+
+### Example: add a Telegram bot
+
+```bash
+curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels \
+  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": "telegram",
+    "botToken": "123456789:AAF_your_telegram_bot_token",
+    "dmPolicy": "open",
+    "groupPolicy": "disabled"
+  }'
+```
+
+```json
+{
+  "message": "channel added successfully",
+  "channel": "telegram",
+  "account": "default"
+}
+```
+
+### Example: add a Slack workspace
+
+```bash
+curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels \
+  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": "slack",
+    "botToken": "xoxb-your-bot-token",
+    "appToken": "xapp-your-app-token",
+    "dmPolicy": "open"
+  }'
+```
+
+---
+
+## List channels
+
+```
+GET /bot/api/v1/bots/:id/channels
+```
+
+Returns all configured channel accounts for the bot, read directly from the running pod.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+```bash
+curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+---
+
+## Remove a channel
+
+```
+DELETE /bot/api/v1/bots/:id/channels/:channel
+```
+
+Removes an entire channel or, if `?account=` is specified, removes only that specific account.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="channel" type="string" required>
+  Channel type (e.g., `telegram`).
+</ParamField>
+
+### Query parameters
+
+<ParamField query="account" type="string">
+  If provided, removes only this account. If omitted, removes the entire channel and all its accounts.
+</ParamField>
+
+```bash
+# Remove the entire Telegram channel
+curl -X DELETE https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/telegram \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+
+# Remove only the "work" account of a Slack channel
+curl -X DELETE "https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/slack?account=work" \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+---
+
+## Pairing
+
+When a channel is configured with `dmPolicy: pairing`, users must send a pairing code to the bot before they can interact with it. The following endpoints manage pairing requests.
+
+### List pairing requests
+
+```
+GET /bot/api/v1/bots/:id/channels/:channel/pairing
+```
+
+Returns all pending pairing requests for the channel.
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="channel" type="string" required>
+  Channel type.
+</ParamField>
+
+```bash
+curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/telegram/pairing \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+### Approve a pairing request
+
+```
+POST /bot/api/v1/bots/:id/channels/:channel/pairing/approve
+```
+
+Approves a pending pairing request using the code the user sent to the bot.
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="channel" type="string" required>
+  Channel type.
+</ParamField>
+
+<ParamField body="code" type="string" required>
+  The pairing code sent by the user (e.g., `JDB55KTQ`).
+</ParamField>
+
+```bash
+curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/telegram/pairing/approve \
+  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"code": "JDB55KTQ"}'
+```
+
+### Revoke a pairing
+
+```
+POST /bot/api/v1/bots/:id/channels/:channel/pairing/revoke
+```
+
+Revokes an existing pairing, preventing the user from interacting with the bot through this channel.
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="channel" type="string" required>
+  Channel type.
+</ParamField>
+
+<ParamField body="user_id" type="string" required>
+  The channel user ID to revoke (e.g., `1743739674`).
+</ParamField>
+
+```bash
+curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/telegram/pairing/revoke \
+  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "1743739674"}'
+```
+
+### Get paired users
+
+```
+GET /bot/api/v1/bots/:id/channels/:channel/pairing/users
+```
+
+Returns all users who are currently paired with the bot on this channel.
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="channel" type="string" required>
+  Channel type.
+</ParamField>
+
+```bash
+curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/telegram/pairing/users \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+```json
+{
+  "channel": "telegram",
+  "users": ["1743739674", "9876543210"]
+}
+```
+
+---
+
+## WeChat (WeCom)
+
+WeChat login uses a QR code flow instead of a static token. The user scans a QR code in the WeChat app to link their account.
+
+### Start QR login
+
+```
+POST /bot/api/v1/bots/:id/channels/wechat/login
+```
+
+Initiates a QR code login session. Returns a QR code image URL valid for 5 minutes.
+
+<ParamField body="name" type="string">
+  Optional friendly display name for this WeChat account.
+</ParamField>
+
+```bash
+curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/wechat/login \
+  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Work WeChat"}'
+```
+
+```json
+{
+  "qrcode_url": "https://...",
+  "message": "使用微信扫描二维码，以完成连接。"
+}
+```
+
+### Poll login status
+
+```
+GET /bot/api/v1/bots/:id/channels/wechat/login/status
+```
+
+Polls the scan status. Call this endpoint repeatedly (every 2–3 seconds) until `status` is `confirmed` or `expired`.
+
+<ResponseField name="status" type="string">
+  One of `wait`, `scaned`, `confirmed`, or `expired`.
+</ResponseField>
+
+<ResponseField name="connected" type="boolean">
+  `true` only when `status` is `confirmed`.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable status message.
+</ResponseField>
+
+### List WeChat accounts
+
+```
+GET /bot/api/v1/bots/:id/channels/wechat/accounts
+```
+
+### Remove a WeChat account
+
+```
+DELETE /bot/api/v1/bots/:id/channels/wechat/accounts/:account_id
+```

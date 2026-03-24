@@ -1,0 +1,170 @@
+---
+title: Admin Bot Upgrade
+description: Upgrade running bot Kubernetes Deployments to the latest OpenClaw image.
+---
+
+These endpoints trigger a rolling image update on one or all running bot Kubernetes Deployments. An "upgrade" replaces the container image in each bot's Deployment spec, causing Kubernetes to perform a rolling restart with the new image version. After the image update, ClawHost syncs the latest gateway config to each upgraded pod.
+
+All endpoints require an admin token.
+
+```bash
+Authorization: Bearer <admin-token>
+```
+
+---
+
+## Upgrade all bots
+
+```
+POST /bot/api/v1/admin/bots/upgrade
+```
+
+Upgrades all bots with status `running` to the specified OpenClaw image. Upgrades run concurrently (up to 10 at a time). Bots already running the target image are skipped.
+
+### Request body
+
+<ParamField body="image" type="string">
+  The target container image to deploy (e.g. `1panel/openclaw:latest`). If omitted, the image configured in `openclaw.image` on the server is used.
+</ParamField>
+
+### Response
+
+<ResponseField name="image" type="string">
+  The target image used for this upgrade run.
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  Total number of running bots found.
+</ResponseField>
+
+<ResponseField name="upgraded" type="number">
+  Number of bots successfully upgraded.
+</ResponseField>
+
+<ResponseField name="failed" type="number">
+  Number of bots that could not be upgraded due to an error.
+</ResponseField>
+
+<ResponseField name="skipped" type="number">
+  Number of bots skipped because they were already running the target image, or their Deployment could not be found.
+</ResponseField>
+
+<ResponseField name="results" type="object[]">
+  Per-bot upgrade results.
+  <Expandable title="result properties">
+    <ResponseField name="bot_id" type="string">
+      ID of the bot.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Outcome for this bot: `upgraded`, `failed`, or `skipped`.
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Additional detail, present when status is `failed` or `skipped`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST http://<host>:18080/bot/api/v1/admin/bots/upgrade \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"image": "1panel/openclaw:v1.2.0"}'
+```
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "image": "1panel/openclaw:v1.2.0",
+    "total": 3,
+    "upgraded": 2,
+    "failed": 0,
+    "skipped": 1,
+    "results": [
+      {
+        "bot_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "status": "upgraded"
+      },
+      {
+        "bot_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+        "status": "upgraded"
+      },
+      {
+        "bot_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+        "status": "skipped",
+        "message": "already running target image"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Upgrade a specific bot
+
+```
+POST /bot/api/v1/admin/bots/:id/upgrade
+```
+
+Upgrades a single bot's Kubernetes Deployment to the specified OpenClaw image. The bot must be in `running` status. If the bot is already running the target image, the request succeeds with status `skipped`.
+
+After the image update, ClawHost syncs the latest gateway config to the new pod in the background.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot ID (UUID).
+</ParamField>
+
+### Request body
+
+<ParamField body="image" type="string">
+  The target container image to deploy (e.g. `1panel/openclaw:latest`). If omitted, the image configured in `openclaw.image` on the server is used.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Outcome: `upgraded` or `skipped`.
+</ResponseField>
+
+<ResponseField name="image" type="string">
+  The target image used.
+</ResponseField>
+
+<ResponseField name="previous_image" type="string">
+  The image the bot was running before the upgrade. Present when `status` is `upgraded`.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Additional detail. Present when `status` is `skipped`.
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST http://<host>:18080/bot/api/v1/admin/bots/a1b2c3d4-e5f6-7890-abcd-ef1234567890/upgrade \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"image": "1panel/openclaw:v1.2.0"}'
+```
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "status": "upgraded",
+    "image": "1panel/openclaw:v1.2.0",
+    "previous_image": "1panel/openclaw:v1.1.0"
+  }
+}
+```
+
+<Note>
+  If the bot is not in `running` status, the request returns a `400` error: `bot is not running`.
+</Note>

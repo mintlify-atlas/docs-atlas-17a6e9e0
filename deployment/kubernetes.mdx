@@ -1,0 +1,174 @@
+---
+title: 'Kubernetes manifests'
+description: 'Deploy ClawHost using raw Kubernetes manifests for full control over every resource.'
+---
+
+If you prefer not to use Helm, you can apply the raw Kubernetes manifests directly from `deploy/k8s/`. This gives you complete control over each resource.
+
+## Manifest files
+
+| File | Description |
+| --- | --- |
+| `namespace.yaml` | Creates the `clawhost` namespace. |
+| `rbac.yaml` | ServiceAccount, Role, and RoleBinding for ClawHost. |
+| `pvc.yaml` | Shared PersistentVolumeClaim for bot data (`clawhost-shared-data`, 10 Gi). |
+| `postgres.yaml` | PostgreSQL Deployment, PVC (5 Gi), and ClusterIP Service. |
+| `secrets.yaml.example` | Secret template — copy and edit before applying. |
+| `configmap.yaml` | ClawHost `config.toml` mounted into the pod. |
+| `deployment.yaml` | ClawHost Deployment and ClusterIP Service. |
+
+## Deploying step by step
+
+<Steps>
+  <Step title="Create the namespace">
+    ```bash
+    kubectl apply -f deploy/k8s/namespace.yaml
+    ```
+
+    This creates the `clawhost` namespace that all other resources are scoped to.
+  </Step>
+
+  <Step title="Apply RBAC resources">
+    ```bash
+    kubectl apply -f deploy/k8s/rbac.yaml
+    ```
+
+    This creates a `ServiceAccount`, `Role`, and `RoleBinding` that allow ClawHost to manage bot pods inside the `clawhost` namespace. See [RBAC permissions](#rbac-permissions) below for details.
+  </Step>
+
+  <Step title="Create the shared storage">
+    ```bash
+    kubectl apply -f deploy/k8s/pvc.yaml
+    ```
+
+    This creates a 10 Gi PersistentVolumeClaim (`clawhost-shared-data`) that is mounted into each bot pod for shared data such as skills and plugins.
+  </Step>
+
+  <Step title="Configure secrets">
+    Copy the example secrets file, then edit it with your actual tokens and passwords:
+
+    ```bash
+    cp deploy/k8s/secrets.yaml.example deploy/k8s/secrets.yaml
+    ```
+
+    Edit `deploy/k8s/secrets.yaml`:
+
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: clawhost-secrets
+      namespace: clawhost
+    type: Opaque
+    stringData:
+      admin-token: "your-secure-admin-token"
+      db-password: "your-secure-db-password"
+    ```
+
+    Apply the secret:
+
+    ```bash
+    kubectl apply -f deploy/k8s/secrets.yaml
+    ```
+
+    <Warning>
+      Never commit `secrets.yaml` to source control. It is listed in `.gitignore` by default. Only `secrets.yaml.example` should be committed.
+    </Warning>
+  </Step>
+
+  <Step title="Deploy PostgreSQL">
+    ```bash
+    kubectl apply -f deploy/k8s/postgres.yaml
+    ```
+
+    This creates a PostgreSQL 16 Deployment with a 5 Gi PVC for data persistence, and a ClusterIP Service (`clawhost-pg:5432`). The database password is read from the `clawhost-secrets` Secret applied in the previous step.
+  </Step>
+
+  <Step title="Apply the ConfigMap">
+    ```bash
+    kubectl apply -f deploy/k8s/configmap.yaml
+    ```
+
+    The ConfigMap contains the `config.toml` file mounted into the ClawHost pod. Edit `deploy/k8s/configmap.yaml` to update settings such as the domain, OpenClaw image, or resource limits before applying.
+
+    Key settings in the default ConfigMap:
+
+    ```toml
+    [db]
+    host = "clawhost-pg"   # points to the in-cluster PostgreSQL Service
+
+    [kubernetes]
+    kubeconfig = ""         # empty = use in-cluster service account
+    namespace = "clawhost"
+
+    [domain]
+    api_domain = "clawhost.ai"
+    bot_domain_suffix = "clawhost.ai"
+    bot_domain_template = "https://{bot_id}.clawhost.ai"
+    ```
+
+    See [Configuration](/deployment/configuration) for the full reference.
+  </Step>
+
+  <Step title="Deploy ClawHost">
+    ```bash
+    kubectl apply -f deploy/k8s/deployment.yaml
+    ```
+
+    This creates the ClawHost Deployment and a ClusterIP Service on port 18080. The deployment:
+
+    - Uses the `clawhost` ServiceAccount for K8s API access
+    - Mounts `clawhost-config` ConfigMap as `/app/config.toml`
+    - Reads `admin-token` and `db-password` from `clawhost-secrets`
+    - Runs liveness and readiness probes against `/health`
+  </Step>
+
+  <Step title="Access ClawHost">
+    Port-forward to access the API locally:
+
+    ```bash
+    kubectl -n clawhost port-forward svc/clawhost 18080:18080
+    curl http://localhost:18080/health
+    ```
+  </Step>
+</Steps>
+
+## RBAC permissions
+
+ClawHost requires a Role with access to the following Kubernetes resources inside the `clawhost` namespace:
+
+| API group | Resources | Verbs |
+| --- | --- | --- |
+| `""` (core) | `pods`, `pods/exec`, `pods/log`, `services`, `persistentvolumeclaims` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` |
+| `apps` | `deployments` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` |
+
+These permissions allow ClawHost to create, start, stop, and delete OpenClaw bot Deployments and their associated Services.
+
+```yaml
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/log", "services", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+```
+
+<Note>
+  The Role is namespace-scoped (not cluster-wide), so ClawHost can only manage resources within the `clawhost` namespace.
+</Note>
+
+## Shared storage
+
+The `clawhost-shared-data` PVC is mounted into each bot pod at `/clawhost-data`. It stores per-bot data such as installed skills, plugins, and user-installed npm packages that should persist across pod restarts.
+
+The PVC uses `ReadWriteOnce` access mode. If you need to run multiple bot pods on different nodes simultaneously, consider a storage class that supports `ReadWriteMany` (e.g. NFS or a cloud file storage).
+
+## Updating the config
+
+To change ClawHost configuration after deploying, edit `deploy/k8s/configmap.yaml` and re-apply:
+
+```bash
+kubectl apply -f deploy/k8s/configmap.yaml
+kubectl -n clawhost rollout restart deployment/clawhost
+```

@@ -1,0 +1,254 @@
+---
+title: 'Model providers'
+description: 'Configure AI model providers and agent defaults for OpenClaw bots.'
+---
+
+ClawHost allows you to configure one or more AI model providers per bot. Provider configuration is stored in the bot's `config` and synced to the running pod when changes are made. All endpoints require an `Authorization: Bearer <token>` header.
+
+## Supported providers
+
+| Provider | Name key | Auth mode | API format |
+|----------|----------|-----------|------------|
+| Anthropic | `anthropic` | `api-key` | `anthropic-messages` |
+| OpenAI | `openai` | `api-key` | `openai-completions` |
+| MiniMax | `minimax` | `bearer` | `openai-completions` |
+| Any OpenAI-compatible API | custom | `api-key` or `bearer` | `openai-completions` |
+
+## Provider configuration fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Unique provider identifier (e.g., `anthropic`, `openai`) |
+| `baseUrl` | string | Custom base URL; required for non-default endpoints |
+| `apiKey` | string | API key for authentication |
+| `auth` | string | Auth mode: `api-key` or `bearer` |
+| `api` | string | API format: `anthropic-messages` or `openai-completions` |
+| `models` | array | List of model configurations for this provider |
+
+### Model configuration fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Model identifier as accepted by the provider API |
+| `name` | string | Human-readable display name |
+| `reasoning` | boolean | Whether the model supports extended reasoning |
+| `input` | array | Supported input types (e.g., `["text"]`, `["text", "image"]`) |
+| `contextWindow` | integer | Context window size in tokens |
+| `maxTokens` | integer | Maximum output tokens |
+
+## Listing providers
+
+```
+GET /bot/api/v1/bots/:id/config/models
+```
+
+Returns all configured providers as a map keyed by provider name.
+
+```bash
+curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+**Response example:**
+
+```json
+{
+  "anthropic": {
+    "apiKey": "sk-ant-xxx",
+    "models": [
+      {
+        "id": "claude-sonnet-4-20250514",
+        "name": "Claude Sonnet 4",
+        "input": ["text", "image"],
+        "contextWindow": 200000,
+        "maxTokens": 8192
+      }
+    ]
+  }
+}
+```
+
+## Adding a provider
+
+```
+POST /bot/api/v1/bots/:id/config/models
+```
+
+The `name` field is required and must be unique for this bot. If the bot is running, only the `models` config section is synced to the pod — gateway settings are not affected.
+
+<Tabs>
+  <Tab title="Anthropic">
+    ```bash
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "anthropic",
+        "apiKey": "sk-ant-xxx",
+        "models": [
+          {
+            "id": "claude-sonnet-4-20250514",
+            "name": "Claude Sonnet 4",
+            "input": ["text", "image"],
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }'
+    ```
+  </Tab>
+  <Tab title="OpenAI">
+    ```bash
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "openai",
+        "apiKey": "sk-xxx",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o",
+            "input": ["text", "image"],
+            "contextWindow": 128000,
+            "maxTokens": 16384
+          }
+        ]
+      }'
+    ```
+  </Tab>
+  <Tab title="OpenAI-compatible">
+    ```bash
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "my-provider",
+        "baseUrl": "https://api.my-provider.com/v1",
+        "apiKey": "xxx",
+        "auth": "bearer",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "my-model-v1",
+            "name": "My Model",
+            "input": ["text"],
+            "contextWindow": 32000,
+            "maxTokens": 4096
+          }
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Getting a specific provider
+
+```
+GET /bot/api/v1/bots/:id/config/models/:provider
+```
+
+```bash
+curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models/anthropic \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+## Updating a provider
+
+```
+PUT /bot/api/v1/bots/:id/config/models/:provider
+```
+
+Replaces the full provider configuration. All fields are overwritten.
+
+```bash
+curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models/anthropic \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "apiKey": "sk-ant-yyy",
+    "models": [
+      {
+        "id": "claude-sonnet-4-20250514",
+        "name": "Claude Sonnet 4",
+        "input": ["text", "image"],
+        "contextWindow": 200000,
+        "maxTokens": 8192
+      },
+      {
+        "id": "claude-haiku-4-5-20251001",
+        "name": "Claude Haiku 4.5",
+        "input": ["text"],
+        "contextWindow": 200000,
+        "maxTokens": 4096
+      }
+    ]
+  }'
+```
+
+## Deleting a provider
+
+```
+DELETE /bot/api/v1/bots/:id/config/models/:provider
+```
+
+```bash
+curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models/anthropic \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+## Agent defaults
+
+Agent defaults set which models the OpenClaw agent uses by default. Models are referenced using `<provider>/<model-id>` notation.
+
+### Get agent defaults
+
+```
+GET /bot/api/v1/bots/:id/config/defaults
+```
+
+```bash
+curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/defaults \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+**Response example:**
+
+```json
+{
+  "primary_model": "anthropic/claude-sonnet-4-20250514",
+  "fallback_model": "anthropic/claude-haiku-4-5-20251001"
+}
+```
+
+### Set agent defaults
+
+```
+PUT /bot/api/v1/bots/:id/config/defaults
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `primary_model` | string | Primary model in `<provider>/<model-id>` format |
+| `fallback_model` | string | Fallback model used when the primary is unavailable |
+
+```bash
+curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/defaults \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "primary_model": "anthropic/claude-sonnet-4-20250514",
+    "fallback_model": "anthropic/claude-haiku-4-5-20251001"
+  }'
+```
+
+If the bot is running, only the `agents` config section is synced to the pod — gateway settings are not affected.
+
+## Legacy single-provider config migration
+
+Bots created with the legacy flat config format (`model`, `api_key`, `provider`, `base_url`, `auth`, `api` at the top level of `config`) are automatically migrated to the multi-provider format when provider operations are called. The legacy provider is promoted to a `ModelProvider` entry, defaulting to the name `anthropic` if `provider` was not set.
+
+<Note>
+If you have bots using the legacy single-provider config, they will continue to work. Use the provider endpoints to migrate to the multi-provider format at your own pace.
+</Note>

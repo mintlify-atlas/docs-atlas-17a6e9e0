@@ -1,0 +1,152 @@
+---
+title: 'Proxy'
+description: 'ClawHost provides an HTTP and WebSocket reverse proxy to forward requests to any running bot. Requests can be routed by bot ID path or via subdomain.'
+---
+
+The proxy layer requires **no additional authentication at the proxy level** for public bot endpoints. The bot handles its own auth. For ChatClaw WebUI pods, a valid access token is required (see below).
+
+---
+
+## Path-based routing
+
+```
+ANY /proxy/:bot_id/*
+```
+
+Forwards the request to the bot's internal service. The `bot_id` can be either:
+
+- A **UUID** — e.g., `a1b2c3d4-e5f6-7890-abcd-ef1234567890`
+- A **slug** — e.g., `a1b2c3d4` (the first 8 characters of the UUID, dashes removed)
+
+The wildcard path (`*`) is forwarded verbatim to the bot. Any HTTP method is supported.
+
+```bash
+# Forward an HTTP GET to the bot's root
+curl https://api.clawhost.ai/proxy/YOUR_BOT_ID/
+
+# Forward to a specific bot API path
+curl https://api.clawhost.ai/proxy/YOUR_BOT_ID/v1/chat
+
+# Forward using the bot slug
+curl https://api.clawhost.ai/proxy/a1b2c3d4/
+```
+
+---
+
+## Subdomain routing
+
+Bots can also be reached via subdomain:
+
+```
+https://{bot-slug}.{bot_domain_suffix}/*
+```
+
+For example, if `bot_domain_suffix` is `clawhost.ai` and the bot slug is `a1b2c3d4`:
+
+```
+https://a1b2c3d4.clawhost.ai/
+```
+
+ClawHost looks up the bot by slug from the subdomain, then proxies the request to that bot's pod.
+
+### DNS setup
+
+Subdomain routing requires a DNS wildcard record pointing to the ClawHost server:
+
+```
+*.clawhost.ai  A  <ClawHost IP>
+```
+
+For local development, configure your local DNS resolver (e.g., dnsmasq) to resolve `*.clawhost.loc` to `127.0.0.1`, then set `bot_domain_suffix = "clawhost.loc"` in `config.toml`.
+
+---
+
+## Configuration
+
+Proxy behavior is controlled by the `[domain]` section in `config.toml`:
+
+```toml
+[domain]
+api_domain = "clawhost.ai"
+bot_domain_suffix = "clawhost.ai"
+bot_domain_template = "https://{bot_id}.clawhost.ai"
+```
+
+| Key | Description |
+|---|---|
+| `api_domain` | Domain for the ClawHost API itself. |
+| `bot_domain_suffix` | Suffix used for subdomain routing and bot URL generation. |
+| `bot_domain_template` | URL template for generating per-bot access URLs. `{bot_id}` is replaced with the bot slug. |
+
+### Local development mode
+
+Set `local_dev = true` in the `[kubernetes]` section to use ClusterIP addresses for direct pod access from the host machine. This is useful when running ClawHost outside the cluster:
+
+```toml
+[kubernetes]
+local_dev = true
+```
+
+---
+
+## Routing logic
+
+The proxy routes requests to different backends based on path and headers:
+
+| Request type | Destination |
+|---|---|
+| Path starts with `/v1/` | OpenClaw gateway (port `18789`) |
+| `Upgrade: websocket` header present | OpenClaw gateway |
+| All other paths | ChatClaw WebUI (if configured) or OpenClaw gateway |
+
+### ChatClaw WebUI authentication
+
+When a bot pod runs the ChatClaw WebUI sidecar, the proxy enforces token authentication before forwarding requests:
+
+1. Pass `?token=<access_token>` on the first request. The proxy sets an `HttpOnly` session cookie (`_claw_session`) valid for 7 days.
+2. Subsequent requests use the session cookie automatically — no need to re-send the token.
+3. If the token is missing or invalid, the proxy returns `401 Unauthorized`.
+
+```bash
+# First request — pass token as query parameter
+curl "https://a1b2c3d4.clawhost.ai/?token=YOUR_BOT_ACCESS_TOKEN"
+
+# Subsequent requests use the cookie set by the proxy
+curl --cookie "_claw_session=..." "https://a1b2c3d4.clawhost.ai/chat"
+```
+
+---
+
+## WebSocket proxy
+
+WebSocket connections are detected automatically when the request includes an `Upgrade: websocket` header. The proxy upgrades both connections and forwards messages bidirectionally.
+
+**Connection lifecycle:**
+
+1. Client sends WebSocket upgrade request to the proxy.
+2. Proxy upgrades the client connection.
+3. Proxy dials the backend WebSocket endpoint.
+4. Messages are forwarded in both directions until either side closes.
+
+```bash
+# Connect to the bot gateway WebSocket using wscat
+wscat -c "wss://api.clawhost.ai/proxy/YOUR_BOT_ID/v1/ws"
+
+# With bot access token for gateway auth
+wscat -c "wss://api.clawhost.ai/proxy/YOUR_BOT_ID/v1/ws" \
+  -H "Authorization: Bearer YOUR_BOT_ACCESS_TOKEN"
+```
+
+<Note>
+  The proxy forwards `Authorization`, `Cookie`, `X-Real-IP`, and `X-Forwarded-For` headers to the backend WebSocket connection.
+</Note>
+
+### NOT_PAIRED auto-approval
+
+If the OpenClaw gateway returns a `NOT_PAIRED` error (the browser/CLI client has not yet been paired), the proxy automatically approves the pending device request and retries the connection — provided a valid `?token=` was supplied on the initial request. This removes the need for manual device approval for web-based access.
+
+---
+
+## Load balancing
+
+Each bot runs as a single-replica Kubernetes Deployment. The proxy always routes to the single pod serving that bot. Multi-replica bots are not currently supported.

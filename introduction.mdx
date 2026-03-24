@@ -1,0 +1,88 @@
+---
+title: "ClawHost"
+description: "Kubernetes-native platform for deploying, managing, and orchestrating OpenClaw AI bot instances."
+---
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Deploy your first OpenClaw bot in minutes using Helm, kubectl, or a local binary.
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture/overview">
+    Understand how ClawHost orchestrates bots on Kubernetes with isolated Pods per tenant.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Full REST API reference for managing apps, bots, channels, devices, and model providers.
+  </Card>
+  <Card title="Deployment Guide" icon="cloud" href="/deployment/helm">
+    Deploy ClawHost with Helm, raw K8s manifests, or Docker for any environment.
+  </Card>
+</CardGroup>
+
+## What is ClawHost?
+
+ClawHost is a Kubernetes-native hosting platform for [OpenClaw](https://openclaw.ai/) AI agent bots. It provides a RESTful API to create, deploy, and manage AI agent instances in a multi-tenant environment — each bot runs as an isolated Kubernetes Pod with its own Deployment and Service.
+
+ClawHost handles the full bot lifecycle: provisioning K8s resources, syncing configuration bidirectionally with PostgreSQL, proxying HTTP and WebSocket traffic via subdomain routing, and managing integrations with messaging platforms.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Bot lifecycle management" icon="rotate">
+    Create, start, stop, restart, upgrade, and delete bot instances via a clean REST API. Bot state is persisted in PostgreSQL and synced to K8s.
+  </Card>
+  <Card title="Kubernetes-native" icon="server">
+    Each bot runs as an isolated K8s Pod with its own Deployment and Service. No per-bot Ingress required — ClawHost proxies all traffic internally.
+  </Card>
+  <Card title="Multi-tenant" icon="users">
+    App-level isolation with per-user bot ownership. Each app receives its own API token, and bots are scoped to the app and user that created them.
+  </Card>
+  <Card title="IM channel integrations" icon="comments">
+    Connect bots to Telegram, Slack, Discord, Teams, LINE, and Feishu. Manage channel configuration and device pairing through the API.
+  </Card>
+  <Card title="Multi-provider AI models" icon="brain">
+    Configure Anthropic, OpenAI, MiniMax, and any OpenAI-compatible provider. Set per-bot model defaults and manage provider credentials securely.
+  </Card>
+  <Card title="Built-in admin UI" icon="desktop">
+    A Next.js admin panel is statically embedded in the Go binary. Manage apps and bots visually at `/admin` without external dependencies.
+  </Card>
+</CardGroup>
+
+## How it works
+
+```
+┌────────┐       ┌───────────────────────┐       ┌─────────────────────┐
+│ Client │──────▶│       ClawHost        │──────▶│    K8s Cluster      │
+└────────┘       │                       │       │                     │
+    │            │  ┌─────────┐ ┌──────┐ │       │  ┌───────────────┐  │
+    │  Subdomain │  │ Bot API │ │Admin │ │  K8s  │  │ OpenClaw Pod  │  │
+    │  Routing   │  │         │ │ API  │ │  API  │  │               │  │
+    └───────────▶│  └─────────┘ └──────┘ │◀────▶│  │  Gateway      │  │
+                 │  ┌──────────────────┐ │       │  │  IM Channels  │  │
+                 │  │ Proxy (HTTP/WS)  │─┼──────▶│  │  Devices      │  │
+                 │  └──────────────────┘ │       │  └───────────────┘  │
+                 │           │           │       │  ┌───────────────┐  │
+                 └───────────┼───────────┘       │  │  Shared PVC   │  │
+                             │                   │  └───────────────┘  │
+                       ┌─────┴─────┐             └─────────────────────┘
+                       │PostgreSQL │
+                       └───────────┘
+```
+
+ClawHost sits between your clients and the Kubernetes cluster. It manages bot Deployments and Services, proxies all bot traffic (including WebSocket) via subdomain routing, and keeps bot configuration synchronized between PostgreSQL and the running pods.
+
+## Get started
+
+<Steps>
+  <Step title="Choose your deployment method">
+    ClawHost supports [Helm](/deployment/helm) (recommended for production), [raw K8s manifests](/deployment/kubernetes), and [local binary](/quickstart) for development.
+  </Step>
+  <Step title="Configure your environment">
+    Set your admin token, database connection, Kubernetes namespace, and domain settings in `config.toml` or Helm values. See the [configuration reference](/deployment/configuration).
+  </Step>
+  <Step title="Create an app and your first bot">
+    Use the admin API to create an app, then provision a bot with your preferred AI model. Follow the [quickstart guide](/quickstart) for a complete walkthrough.
+  </Step>
+  <Step title="Connect messaging channels">
+    Integrate your bot with Telegram, Slack, Discord, or other platforms via the [IM channels API](/api-reference/channels/im-channels).
+  </Step>
+</Steps>

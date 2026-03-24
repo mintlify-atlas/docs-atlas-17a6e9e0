@@ -1,0 +1,298 @@
+---
+title: 'Model providers'
+description: 'Configure AI model providers for a bot. Supports Anthropic, OpenAI-compatible APIs, and any provider that speaks the anthropic-messages or openai-completions wire format.'
+---
+
+All routes require `Authorization: Bearer <app_token>` and the bot must exist.
+
+<Info>
+  Changes to model providers are synced live to a running bot pod. If the bot is stopped, changes are persisted in the database and applied the next time the bot starts.
+</Info>
+
+---
+
+## List model providers
+
+```
+GET /bot/api/v1/bots/:id/config/models
+```
+
+Returns a map of all configured providers keyed by provider name.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+<ResponseField name="(provider name)" type="object">
+  One key per configured provider. Each value is a provider config object.
+
+  <Expandable title="ProviderConfig">
+    <ResponseField name="base_url" type="string">
+      Base URL for the provider API. Required for self-hosted or proxy endpoints.
+    </ResponseField>
+    <ResponseField name="api_key" type="string">
+      API key used for authentication.
+    </ResponseField>
+    <ResponseField name="auth" type="string">
+      Authentication scheme. Either `api-key` (default) or `bearer`.
+    </ResponseField>
+    <ResponseField name="api" type="string">
+      Wire format. Either `anthropic-messages` (default) or `openai-completions`.
+    </ResponseField>
+    <ResponseField name="models" type="ProviderModelConfig[]">
+      List of models exposed by this provider.
+
+      <Expandable title="ProviderModelConfig">
+        <ResponseField name="id" type="string" required>
+          Model identifier used in API calls (e.g., `claude-sonnet-4-20250514`).
+        </ResponseField>
+        <ResponseField name="name" type="string">
+          Human-readable display name.
+        </ResponseField>
+        <ResponseField name="reasoning" type="boolean">
+          Whether this model supports extended reasoning.
+        </ResponseField>
+        <ResponseField name="input" type="string[]">
+          Supported input modalities, e.g., `["text", "image"]`.
+        </ResponseField>
+        <ResponseField name="context_window" type="integer">
+          Maximum context window in tokens.
+        </ResponseField>
+        <ResponseField name="max_tokens" type="integer">
+          Maximum output tokens per response.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl -X GET https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/config/models \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+```json
+{
+  "anthropic": {
+    "api_key": "sk-ant-...",
+    "api": "anthropic-messages",
+    "models": [
+      {
+        "id": "claude-sonnet-4-20250514",
+        "name": "Claude Sonnet 4",
+        "input": ["text", "image"],
+        "context_window": 200000,
+        "max_tokens": 8192
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Add a model provider
+
+```
+POST /bot/api/v1/bots/:id/config/models
+```
+
+Adds a new model provider. Returns `400` if a provider with the same name already exists.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Request body
+
+<ParamField body="name" type="string" required>
+  Unique name for the provider (e.g., `anthropic`, `openai`, `minimax`). Used as the key in the providers map and in model identifiers (`{name}/{model-id}`).
+</ParamField>
+
+<ParamField body="base_url" type="string">
+  Custom base URL. Required for self-hosted models or OpenAI-compatible proxies. Omit to use the provider's default endpoint.
+</ParamField>
+
+<ParamField body="api_key" type="string">
+  API key for authentication.
+</ParamField>
+
+<ParamField body="auth" type="string">
+  Authentication header scheme: `api-key` (sends `x-api-key: <key>`) or `bearer` (sends `Authorization: Bearer <key>`). Defaults to `api-key`.
+</ParamField>
+
+<ParamField body="api" type="string">
+  Wire format: `anthropic-messages` or `openai-completions`. Defaults to `anthropic-messages`.
+</ParamField>
+
+<ParamField body="models" type="ProviderModelConfig[]">
+  Models to register under this provider.
+
+  <Expandable title="ProviderModelConfig">
+    <ParamField body="id" type="string" required>
+      Model identifier (e.g., `claude-sonnet-4-20250514`).
+    </ParamField>
+    <ParamField body="name" type="string">
+      Display name.
+    </ParamField>
+    <ParamField body="reasoning" type="boolean">
+      Set to `true` for models with extended reasoning support.
+    </ParamField>
+    <ParamField body="input" type="string[]">
+      Input modalities: `text`, `image`, `pdf`, etc.
+    </ParamField>
+    <ParamField body="context_window" type="integer">
+      Context window size in tokens.
+    </ParamField>
+    <ParamField body="max_tokens" type="integer">
+      Maximum output tokens.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Example: add Anthropic
+
+```bash
+curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/config/models \
+  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "anthropic",
+    "api_key": "sk-ant-api03-...",
+    "api": "anthropic-messages",
+    "models": [
+      {
+        "id": "claude-sonnet-4-20250514",
+        "name": "Claude Sonnet 4",
+        "input": ["text", "image"],
+        "context_window": 200000,
+        "max_tokens": 8192
+      },
+      {
+        "id": "claude-haiku-4-5-20251001",
+        "name": "Claude Haiku 4.5",
+        "input": ["text"],
+        "context_window": 200000,
+        "max_tokens": 4096
+      }
+    ]
+  }'
+```
+
+### Example: add an OpenAI-compatible provider
+
+```bash
+curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/config/models \
+  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "minimax",
+    "base_url": "https://api.minimax.io/v1",
+    "api_key": "YOUR_MINIMAX_KEY",
+    "auth": "bearer",
+    "api": "openai-completions",
+    "models": [
+      {
+        "id": "MiniMax-Text-01",
+        "name": "MiniMax Text 01",
+        "input": ["text"],
+        "context_window": 1000000,
+        "max_tokens": 8192
+      }
+    ]
+  }'
+```
+
+---
+
+## Get a model provider
+
+```
+GET /bot/api/v1/bots/:id/config/models/:provider
+```
+
+Returns the configuration for a single provider.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="provider" type="string" required>
+  Provider name (e.g., `anthropic`).
+</ParamField>
+
+```bash
+curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/config/models/anthropic \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+---
+
+## Update a model provider
+
+```
+PUT /bot/api/v1/bots/:id/config/models/:provider
+```
+
+Replaces the entire configuration for the named provider. The request body has the same shape as the `POST` body (excluding `name`, which comes from the path).
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="provider" type="string" required>
+  Provider name to update.
+</ParamField>
+
+```bash
+curl -X PUT https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/config/models/anthropic \
+  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "api_key": "sk-ant-api03-new-key-...",
+    "api": "anthropic-messages",
+    "models": [
+      {
+        "id": "claude-sonnet-4-20250514",
+        "input": ["text", "image"],
+        "context_window": 200000,
+        "max_tokens": 16000
+      }
+    ]
+  }'
+```
+
+---
+
+## Delete a model provider
+
+```
+DELETE /bot/api/v1/bots/:id/config/models/:provider
+```
+
+Removes the provider and all its model definitions. Returns `404` if the provider does not exist.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+<ParamField path="provider" type="string" required>
+  Provider name to delete.
+</ParamField>
+
+```bash
+curl -X DELETE https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/config/models/anthropic \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```

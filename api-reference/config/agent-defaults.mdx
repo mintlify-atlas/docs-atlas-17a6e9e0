@@ -1,0 +1,124 @@
+---
+title: 'Agent defaults'
+description: 'Get and set the default model configuration used by all agents in a bot. The primary and fallback models are referenced by their fully-qualified provider/model-id identifier.'
+---
+
+All routes require `Authorization: Bearer <app_token>`.
+
+---
+
+## Model identifier format
+
+Models are referenced using the format `{provider}/{model-id}`, where:
+
+- `{provider}` matches a key in the bot's [model providers](/api-reference/config/model-providers) map.
+- `{model-id}` matches the `id` field of one of that provider's registered models.
+
+**Examples**
+
+| Identifier | Provider | Model |
+|---|---|---|
+| `anthropic/claude-sonnet-4-20250514` | `anthropic` | `claude-sonnet-4-20250514` |
+| `anthropic/claude-haiku-4-5-20251001` | `anthropic` | `claude-haiku-4-5-20251001` |
+| `minimax/MiniMax-Text-01` | `minimax` | `MiniMax-Text-01` |
+
+If the provider or model does not exist in the bot's configuration, the bot will fail to start agents.
+
+---
+
+## Get agent defaults
+
+```
+GET /bot/api/v1/bots/:id/config/defaults
+```
+
+Returns the current default model settings for the bot's agents.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+<ResponseField name="primary_model" type="string">
+  The default model used by agents, in `{provider}/{model-id}` format.
+</ResponseField>
+
+<ResponseField name="fallback_model" type="string">
+  Optional fallback model used when the primary model is unavailable or returns an error.
+</ResponseField>
+
+<ResponseField name="max_concurrent" type="integer">
+  Maximum number of concurrent agent tasks allowed. Only present if explicitly configured.
+</ResponseField>
+
+```bash
+curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/config/defaults \
+  -H "Authorization: Bearer YOUR_APP_TOKEN"
+```
+
+```json
+{
+  "primary_model": "anthropic/claude-sonnet-4-20250514",
+  "fallback_model": "anthropic/claude-haiku-4-5-20251001"
+}
+```
+
+---
+
+## Set agent defaults
+
+```
+PUT /bot/api/v1/bots/:id/config/defaults
+```
+
+Sets the default model(s) for the bot's agents. Changes are persisted to the database and synced live to a running pod.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Request body
+
+<ParamField body="primary_model" type="string" required>
+  Fully-qualified model identifier in `{provider}/{model-id}` format. The referenced provider and model must already be registered via the [model providers API](/api-reference/config/model-providers).
+</ParamField>
+
+<ParamField body="fallback_model" type="string">
+  Optional fallback model. Used automatically when the primary model fails or is rate-limited.
+</ParamField>
+
+### Response
+
+<ResponseField name="primary_model" type="string">
+  The newly configured primary model.
+</ResponseField>
+
+<ResponseField name="fallback_model" type="string">
+  The newly configured fallback model, if provided.
+</ResponseField>
+
+```bash
+curl -X PUT https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/config/defaults \
+  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "primary_model": "anthropic/claude-sonnet-4-20250514",
+    "fallback_model": "anthropic/claude-haiku-4-5-20251001"
+  }'
+```
+
+```json
+{
+  "primary_model": "anthropic/claude-sonnet-4-20250514",
+  "fallback_model": "anthropic/claude-haiku-4-5-20251001"
+}
+```
+
+<Tip>
+  Set a fallback model to keep bots responsive during provider outages or rate-limit windows. A cheaper, faster model (such as Claude Haiku) is a good choice for the fallback role.
+</Tip>

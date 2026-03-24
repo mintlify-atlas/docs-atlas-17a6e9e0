@@ -1,0 +1,273 @@
+---
+title: 'Configuration reference'
+description: 'Complete reference for all ClawHost configuration options in config.toml.'
+---
+
+ClawHost is configured via a `config.toml` file. Copy the example file to get started:
+
+```bash
+cp config.example.toml config.toml
+```
+
+When running in Kubernetes, the config is provided via a ConfigMap mounted at `/app/config.toml`. Sensitive values (admin token, database password) can be overridden at runtime using environment variables:
+
+| Environment variable | Overrides |
+| --- | --- |
+| `CLAWHOST_API_ADMIN_TOKEN` | `api.admin_token` |
+| `CLAWHOST_DB_PASSWORD` | `db.password` |
+
+---
+
+## `[server]`
+
+HTTP server settings.
+
+<ParamField path="server.port" type="number" default="18080">
+  Port the HTTP server listens on. The admin UI, bot API, and proxy all share this port.
+</ParamField>
+
+---
+
+## `[api]`
+
+API authentication settings.
+
+<ParamField path="api.admin_token" type="string" required>
+  Bearer token required to authenticate admin API requests (`/bot/api/v1/admin/...`). Set this to a long, randomly generated string before deploying.
+</ParamField>
+
+---
+
+## `[db]`
+
+PostgreSQL connection settings.
+
+<ParamField path="db.host" type="string" default="localhost">
+  Database hostname or IP address.
+</ParamField>
+
+<ParamField path="db.port" type="number" default="5432">
+  Database port.
+</ParamField>
+
+<ParamField path="db.user" type="string" default="postgres">
+  Database username.
+</ParamField>
+
+<ParamField path="db.password" type="string" required>
+  Database password. In Kubernetes deployments, inject this via the `CLAWHOST_DB_PASSWORD` environment variable rather than storing it in the ConfigMap.
+</ParamField>
+
+<ParamField path="db.database" type="string" default="clawhost">
+  Database name.
+</ParamField>
+
+<ParamField path="db.sslmode" type="string" default="disable">
+  PostgreSQL SSL mode. Accepted values: `disable`, `require`, `verify-ca`, `verify-full`.
+</ParamField>
+
+<ParamField path="db.timezone" type="string" default="Asia/Shanghai">
+  Timezone used for database timestamps. Must be a valid IANA timezone string (e.g. `UTC`, `America/New_York`).
+</ParamField>
+
+---
+
+## `[kubernetes]`
+
+Settings for connecting to and managing the Kubernetes cluster where bot pods are created.
+
+<ParamField path="kubernetes.kubeconfig" type="string" default="">
+  Path to a kubeconfig file. Leave empty to use in-cluster configuration (i.e. when ClawHost itself runs as a pod with a ServiceAccount). Set to an explicit path when running outside the cluster.
+</ParamField>
+
+<ParamField path="kubernetes.namespace" type="string" default="clawhost">
+  Kubernetes namespace where bot Deployments and Services are created. ClawHost's RBAC Role is scoped to this namespace.
+</ParamField>
+
+<ParamField path="kubernetes.local_dev" type="boolean" default="false">
+  When `true`, ClawHost accesses bot pods via their ClusterIP Service instead of a NodePort. Enable this for local development when ClawHost runs on the host machine and can reach pod ClusterIPs directly (e.g. via OrbStack or Docker Desktop).
+</ParamField>
+
+---
+
+## `[storage]`
+
+Shared persistent volume settings for bot data.
+
+<ParamField path="storage.pvc_name" type="string" default="clawhost-shared-data">
+  Name of the PersistentVolumeClaim mounted into each bot pod. This PVC must already exist in the configured namespace before starting bots.
+</ParamField>
+
+<ParamField path="storage.base_path" type="string" default="/clawhost-data">
+  Mount path inside each bot pod where the shared PVC is attached. Skills, plugins, and user-installed packages are stored under this path.
+</ParamField>
+
+---
+
+## `[domain]`
+
+Domain routing settings for the ClawHost API and bot subdomains.
+
+<ParamField path="domain.api_domain" type="string" default="clawhost.ai">
+  Domain used for the ClawHost API and admin UI. If `api_domain` is not set separately, `bot_domain_suffix` is used for both.
+</ParamField>
+
+<ParamField path="domain.bot_domain_suffix" type="string" default="clawhost.ai">
+  Domain suffix for bot subdomains. A bot with ID `abc123` would be accessible at `abc123.<bot_domain_suffix>`.
+</ParamField>
+
+<ParamField path="domain.bot_domain_template" type="string" default="https://{bot_id}.clawhost.ai">
+  URL template for bot WebUI addresses. `{bot_id}` is replaced with the actual bot ID. Returned in API responses so clients know where to reach a bot.
+</ParamField>
+
+---
+
+## `[openclaw]`
+
+Resource and image settings for OpenClaw bot pods. These values apply to every bot pod created by ClawHost.
+
+<ParamField path="openclaw.image" type="string" default="1panel/openclaw:latest">
+  Container image used for OpenClaw bot pods. Pin to a specific tag in production to avoid unintended upgrades.
+</ParamField>
+
+<ParamField path="openclaw.gateway_port" type="number" default="18789">
+  Port inside the bot pod where the OpenClaw gateway listens. ClawHost proxies requests to this port.
+</ParamField>
+
+<ParamField path="openclaw.node_max_old_space_size" type="number" default="6144">
+  Value passed as `--max-old-space-size` to Node.js inside each bot pod (in MB). Tune this alongside `memory_limit`.
+</ParamField>
+
+<ParamField path="openclaw.cpu_limit" type="string" default="2000m">
+  Kubernetes CPU limit for each bot pod (millicores).
+</ParamField>
+
+<ParamField path="openclaw.memory_limit" type="string" default="8Gi">
+  Kubernetes memory limit for each bot pod.
+</ParamField>
+
+<ParamField path="openclaw.cpu_request" type="string" default="500m">
+  Kubernetes CPU request for each bot pod.
+</ParamField>
+
+<ParamField path="openclaw.memory_request" type="string" default="1Gi">
+  Kubernetes memory request for each bot pod.
+</ParamField>
+
+---
+
+## `[chatclaw]` (optional)
+
+ChatClaw is an optional WebUI sidecar that can be deployed alongside OpenClaw in each bot pod. When this section is omitted (the default), OpenClaw's built-in WebUI is used.
+
+To enable ChatClaw, uncomment and configure this section in `config.toml`:
+
+```toml
+[chatclaw]
+image = "chatclaw:latest"
+port = 3000
+cpu_limit = "1000m"
+memory_limit = "1Gi"
+cpu_request = "100m"
+memory_request = "256Mi"
+db_backend = "drizzle"
+data_dir = "/data"
+auth_enabled = "false"
+multi_company = "false"
+```
+
+<ParamField path="chatclaw.image" type="string">
+  Container image for the ChatClaw sidecar. When set, ChatClaw is deployed in every bot pod alongside OpenClaw.
+</ParamField>
+
+<ParamField path="chatclaw.port" type="number" default="3000">
+  Port inside the bot pod where ChatClaw listens.
+</ParamField>
+
+<ParamField path="chatclaw.cpu_limit" type="string" default="1000m">
+  Kubernetes CPU limit for the ChatClaw container.
+</ParamField>
+
+<ParamField path="chatclaw.memory_limit" type="string" default="1Gi">
+  Kubernetes memory limit for the ChatClaw container.
+</ParamField>
+
+<ParamField path="chatclaw.cpu_request" type="string" default="100m">
+  Kubernetes CPU request for the ChatClaw container.
+</ParamField>
+
+<ParamField path="chatclaw.memory_request" type="string" default="256Mi">
+  Kubernetes memory request for the ChatClaw container.
+</ParamField>
+
+<ParamField path="chatclaw.db_backend" type="string" default="drizzle">
+  Database backend used by ChatClaw.
+</ParamField>
+
+<ParamField path="chatclaw.data_dir" type="string" default="/data">
+  Data directory inside the ChatClaw container.
+</ParamField>
+
+<ParamField path="chatclaw.auth_enabled" type="string" default="false">
+  Enable authentication in the ChatClaw UI. Accepts `"true"` or `"false"`.
+</ParamField>
+
+<ParamField path="chatclaw.multi_company" type="string" default="false">
+  Enable multi-company mode in ChatClaw. Accepts `"true"` or `"false"`.
+</ParamField>
+
+---
+
+## Full example
+
+```toml
+[server]
+port = 18080
+
+[api]
+admin_token = "your-admin-token"
+
+[db]
+host = "localhost"
+port = 5432
+user = "postgres"
+password = "your-password"
+database = "clawhost"
+sslmode = "disable"
+timezone = "Asia/Shanghai"
+
+[kubernetes]
+kubeconfig = ""  # Empty for in-cluster config
+namespace = "clawhost"
+
+[storage]
+pvc_name = "clawhost-shared-data"
+base_path = "/clawhost-data"
+
+[domain]
+api_domain = "clawhost.ai"
+bot_domain_suffix = "clawhost.ai"
+bot_domain_template = "https://{bot_id}.clawhost.ai"
+
+[openclaw]
+image = "1panel/openclaw:latest"
+gateway_port = 18789
+node_max_old_space_size = 6144
+cpu_limit = "2000m"
+memory_limit = "8Gi"
+cpu_request = "500m"
+memory_request = "1Gi"
+
+# ChatClaw WebUI (optional, uncomment to enable)
+# [chatclaw]
+# image = "chatclaw:latest"
+# port = 3000
+# cpu_limit = "1000m"
+# memory_limit = "1Gi"
+# cpu_request = "100m"
+# memory_request = "256Mi"
+# db_backend = "drizzle"
+# data_dir = "/data"
+# auth_enabled = "false"
+# multi_company = "false"
+```

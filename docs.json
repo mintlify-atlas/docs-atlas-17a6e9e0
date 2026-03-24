@@ -1,122 +1,127 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "ClawHost",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#cd3434",
+    "light": "#0b3334",
+    "dark": "#fb4c4c"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/d462a840-c4f9-4582-ab84-d6a32480e0be.svg",
+  "logo": {
+    "light": "https://media.brand.dev/16360389-5591-41df-817c-bf3ae1047565.png",
+    "dark": "https://media.brand.dev/16360389-5591-41df-817c-bf3ae1047565.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/fastclaw-ai/clawhost"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/fastclaw-ai/clawhost"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Architecture",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "architecture/overview",
+              "architecture/bot-lifecycle",
+              "architecture/proxy-routing"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Deployment",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "deployment/helm",
+              "deployment/kubernetes",
+              "deployment/docker",
+              "deployment/configuration"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Operations",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "operations/admin-ui",
+              "operations/managing-bots",
+              "operations/skills",
+              "operations/im-channels",
+              "operations/model-providers"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/authentication",
+              "security/multi-tenancy"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/overview"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Admin",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/admin/apps",
+              "api-reference/admin/bot-upgrade"
+            ]
+          },
+          {
+            "group": "Bots",
+            "pages": [
+              "api-reference/bots/create",
+              "api-reference/bots/list",
+              "api-reference/bots/get",
+              "api-reference/bots/update",
+              "api-reference/bots/delete",
+              "api-reference/bots/lifecycle",
+              "api-reference/bots/status"
+            ]
+          },
+          {
+            "group": "Bot Configuration",
+            "pages": [
+              "api-reference/config/model-providers",
+              "api-reference/config/agent-defaults",
+              "api-reference/config/skills"
+            ]
+          },
+          {
+            "group": "Channels & Devices",
+            "pages": [
+              "api-reference/channels/im-channels",
+              "api-reference/channels/devices"
+            ]
+          },
+          {
+            "group": "Proxy",
+            "pages": [
+              "api-reference/proxy/overview"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

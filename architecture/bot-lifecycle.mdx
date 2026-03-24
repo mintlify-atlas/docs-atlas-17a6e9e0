@@ -1,0 +1,173 @@
+---
+title: Bot lifecycle
+description: How ClawHost manages bot state from creation through to deletion, including Kubernetes resource management and configuration sync.
+---
+
+Every OpenClaw bot instance managed by ClawHost moves through a well-defined set of states. This page describes those states, the transitions between them, and what happens inside Kubernetes at each step.
+
+## Bot status values
+
+The `BotStatus` type is defined in `model/bot.go` and stored in the `bots` table as a `varchar(50)` column.
+
+| Status | Meaning |
+|---|---|
+| `created` | The bot record exists in PostgreSQL but no Kubernetes resources have been created yet. |
+| `starting` | Reserved for future use; the system currently transitions directly to `running` after creating K8s resources. |
+| `running` | A `Deployment` and `Service` exist in Kubernetes. The pod may still be pulling the image or waiting for the readiness probe. |
+| `stopped` | The Deployment and Service have been deleted. Bot data on the PVC is preserved. |
+| `error` | The bot encountered an unrecoverable error during a lifecycle operation. |
+
+## State transition diagram
+
+```
+  [created]
+      │
+      │  POST /bots/:id/start
+      ▼
+  [running] ◀──────────────────────────────────┐
+      │                                         │
+      │  POST /bots/:id/stop                    │  POST /bots/:id/restart
+      ▼                                         │
+  [stopped] ──── POST /bots/:id/start ──────────┘
+      │
+      │  DELETE /bots/:id
+      ▼
+   (deleted)
+```
+
+<Note>
+The `GetBotStatus` handler reconciles database state with live Kubernetes state. If a bot is marked `running` in the database but the Deployment no longer exists in the cluster, the handler automatically updates the database record to `stopped`.
+</Note>
+
+## Lifecycle operations
+
+<Tabs>
+  <Tab title="Start">
+    Handled by `StartBot` in `handler/api/v1/bot_start.go`.
+
+    <Steps>
+      <Step title="Validate">
+        The handler checks that the bot is not already `running`. If it is, a `400 Bad Request` is returned.
+      </Step>
+      <Step title="Create Deployment">
+        `k8s.CreateDeployment` builds and submits an `apps/v1 Deployment` named `oc-{shortID}` to the configured namespace. The pod spec includes:
+        - The `openclaw` container (image from `openclaw.image` config)
+        - An `init-permissions` init container that sets ownership on the bot's PVC subdirectory
+        - Resource limits and requests from `openclaw.{cpu,memory}_{limit,request}` config
+        - Liveness and readiness probes on the gateway TCP port (`openclaw.gateway_port`, default `18789`)
+        - A volume mount of the shared PVC at `/home/node/.openclaw`, scoped to a `subPath` equal to the bot's UUID
+      </Step>
+      <Step title="Create Service">
+        `k8s.CreateService` creates a `ClusterIP` Service named `oc-{shortID}-svc` that selects pods by `bot-id` label and exposes the gateway port. The returned endpoint (e.g., `oc-abc12345-svc.clawhost.svc.cluster.local:18789`) is stored in `bot.endpoint`.
+      </Step>
+      <Step title="Update database">
+        `model.UpdateBotStatus` sets `status = running` and writes the endpoint to the `bots` table.
+      </Step>
+      <Step title="Write config (async)">
+        `k8s.WriteConfigToBot` is called in a goroutine. It waits for the pod to become ready, then writes `openclaw.json` to the pod via `kubectl exec`. This sets up gateway token auth using `bot.access_token`.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="Stop">
+    Handled by `StopBot` in `handler/api/v1/bot_stop.go`.
+
+    <Steps>
+      <Step title="Validate">
+        The handler checks that the bot is currently `running`. If not, a `400 Bad Request` is returned.
+      </Step>
+      <Step title="Delete Deployment">
+        `k8s.DeleteDeployment` removes the `Deployment` from Kubernetes. The PVC data is **not** deleted; the bot's files remain on the shared volume under its UUID subdirectory.
+      </Step>
+      <Step title="Delete Service">
+        `k8s.DeleteService` removes the corresponding `ClusterIP` Service.
+      </Step>
+      <Step title="Update database">
+        `model.UpdateBotStatus` sets `status = stopped` and clears `endpoint`.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="Restart">
+    A restart is a stop followed by a start. The bot's PVC data is preserved across the restart, so no config re-injection is required unless the config has changed.
+
+    Alternatively, `k8s.RestartDeployment` can be called directly — it patches the pod template annotation `kubectl.kubernetes.io/restartedAt` to trigger a Kubernetes rolling restart without deleting and recreating the Deployment.
+  </Tab>
+  <Tab title="Upgrade">
+    Handled by `UpdateDeploymentImage` in `service/k8s/deployment.go`.
+
+    <Steps>
+      <Step title="Fetch current Deployment">
+        The existing Deployment spec is retrieved from Kubernetes.
+      </Step>
+      <Step title="Update image">
+        The `image` field on the `openclaw` container is updated to the new image tag. The `imagePullPolicy` is set to `Always` for `latest` tags and `IfNotPresent` for versioned tags (unless `kubernetes.local_dev` is `true`, in which case it is always `IfNotPresent`).
+      </Step>
+      <Step title="Trigger rolling update">
+        The `kubectl.kubernetes.io/restartedAt` annotation is patched and the Deployment is submitted with `Update`. Kubernetes performs a rolling update: the new pod starts and passes its readiness probe before the old pod is terminated.
+      </Step>
+    </Steps>
+
+    The admin endpoint `POST /bot/api/v1/admin/bots/upgrade` upgrades all running bots to the image configured in `openclaw.image`.
+  </Tab>
+</Tabs>
+
+## Configuration sync
+
+Bot configuration is stored as JSONB in `bot.config` and mirrored to the pod's filesystem at `/home/node/.openclaw/openclaw.json`.
+
+The sync logic lives in `service/k8s/config_sync.go` and uses two strategies:
+
+**Full write** (`WriteOpenClawConfigToPod`) — used on initial start and token reset. Overwrites the entire `openclaw.json` file via `cat > ... << 'EOFCONFIG'` executed inside the pod.
+
+**Section-only patch** (`SyncSectionsToPod`) — used for incremental updates (models, channels, agents). A Node.js one-liner is executed inside the pod to merge only the specified top-level keys into the existing file. This preserves the `gateway` section byte-for-byte, preventing OpenClaw's file-watcher from detecting a false change and restarting the gateway.
+
+```javascript
+// Runs inside the pod via kubectl exec
+const fs = require("fs");
+const p = "/home/node/.openclaw/openclaw.json";
+let c = {};
+try { c = JSON.parse(fs.readFileSync(p, "utf8")) } catch(e) {}
+Object.assign(c, JSON.parse(Buffer.from("<base64-patch>", "base64").toString()));
+fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");
+```
+
+The sections that trigger a pod sync are:
+
+| Operation | Synced section(s) |
+|---|---|
+| Add / update model provider | `models` |
+| Remove model provider | `models` |
+| Set agent defaults | `agents` |
+| Add / remove IM channel | `channels` |
+| Reset access token | full write (gateway section changes) |
+
+<Warning>
+The pod must be in a ready state before any sync is attempted. `WaitForPodReady` polls for up to 60 seconds. If the pod is not ready within that window, the sync fails and the error is logged but does not fail the API request.
+</Warning>
+
+## Database schema
+
+The `Bot` model is defined in `model/bot.go` and maps to the `bots` table.
+
+```go
+type Bot struct {
+    ID          string          // UUID primary key (varchar 36)
+    AppID       string          // Foreign key to apps table
+    UserID      string          // Caller-supplied user identifier
+    Name        string          // Human-readable display name
+    Slug        string          // URL-safe unique identifier (auto-generated if omitted)
+    AccessToken string          // 32-char hex token for gateway auth and proxy sessions
+    Status      BotStatus       // created | starting | running | stopped | error
+    Config      json.RawMessage // Full OpenClaw config as JSONB
+    Endpoint    string          // K8s service DNS + port (set when running)
+    ExpiresAt   *time.Time      // Optional expiry; nil means never expires
+    CreatedAt   time.Time
+    UpdatedAt   time.Time
+}
+```
+
+Key points:
+
+- `Slug` is unique across all bots and is used for subdomain routing. If not provided on creation, it defaults to the first 8 characters of the bot's UUID with hyphens stripped.
+- `AccessToken` is a 32-character cryptographically secure hex token, generated on creation and stored in plain text. It is written into `openclaw.json` as the gateway auth token and used by the proxy to issue session cookies.
+- `Config` holds the full OpenClaw configuration as a JSONB blob. It is the canonical store for model providers, IM channels, agent defaults, and MCP server definitions.
+- `Endpoint` is the in-cluster DNS name (`<svc>.<namespace>.svc.cluster.local:<port>`) stored at start time. In local dev mode the ClusterIP is used instead.

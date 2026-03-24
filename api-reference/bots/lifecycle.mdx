@@ -1,0 +1,335 @@
+---
+title: 'Bot lifecycle'
+description: 'Start, stop, restart, upgrade, reset access tokens, and retrieve connection info for a bot.'
+---
+
+All lifecycle endpoints require an app token and take the bot UUID as a path parameter.
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for the app. Format: `Bearer <app-token>`
+</ParamField>
+
+---
+
+## Start
+
+`POST /bot/api/v1/bots/:id/start`
+
+Creates a Kubernetes Deployment and Service for the bot. The bot's status transitions to `running` and the `endpoint` field is populated with the internal K8s service address.
+
+Returns `400` if the bot is already running.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+The updated Bot object with `status: "running"` and a populated `endpoint`.
+
+<RequestExample>
+
+```bash cURL
+curl -s -X POST "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/start" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "status": "running",
+  "endpoint": "bot-e3b0c442.clawhost.svc.cluster.local:3000",
+  "updated_at": "2026-03-24T10:05:00Z"
+}
+```
+
+</ResponseExample>
+
+---
+
+## Stop
+
+`POST /bot/api/v1/bots/:id/stop`
+
+Deletes the bot's Kubernetes Deployment and Service. The bot's status transitions to `stopped` and the `endpoint` is cleared. Bot data stored on the shared PVC is preserved.
+
+Returns `400` if the bot is not currently running.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+The updated Bot object with `status: "stopped"` and an empty `endpoint`.
+
+<RequestExample>
+
+```bash cURL
+curl -s -X POST "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/stop" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "status": "stopped",
+  "endpoint": "",
+  "updated_at": "2026-03-24T10:10:00Z"
+}
+```
+
+</ResponseExample>
+
+---
+
+## Restart
+
+`POST /bot/api/v1/bots/:id/restart`
+
+Performs a rolling replacement of the bot's Kubernetes Deployment spec, then recreates the Service. This picks up configuration changes, image updates, and resource limit changes without downtime.
+
+Returns `400` if the bot is not currently running.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+The Bot object. The restart is processed synchronously; the pod replacement itself is a rolling update and may take a few seconds to complete.
+
+<RequestExample>
+
+```bash cURL
+curl -s -X POST "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/restart" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "status": "running",
+  "endpoint": "bot-e3b0c442.clawhost.svc.cluster.local:3000",
+  "updated_at": "2026-03-24T10:15:00Z"
+}
+```
+
+</ResponseExample>
+
+---
+
+## Reset access token
+
+`POST /bot/api/v1/bots/:id/reset-token`
+
+Generates a new cryptographically secure `access_token` for the bot, invalidating the previous token. If the bot is running, the Kubernetes Deployment is updated with the new token.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">
+  Bot UUID.
+</ResponseField>
+
+<ResponseField name="access_token" type="string">
+  The new access token. Store this — it will not be returned again.
+</ResponseField>
+
+<ResponseField name="access_url" type="string">
+  Updated external access URL embedding the new token.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message: `"access token has been reset"`.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -s -X POST "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/reset-token" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "access_token": "9c2d1f3e8b7a4605d1e2c3f4a5b6c7d8",
+  "access_url": "https://my-bot.clawhost.ai?token=9c2d1f3e8b7a4605d1e2c3f4a5b6c7d8",
+  "message": "access token has been reset"
+}
+```
+
+</ResponseExample>
+
+---
+
+## Get connection info
+
+`GET /bot/api/v1/bots/:id/connect`
+
+Returns connection details for a running bot, including the internal service endpoint, external WebChat URL, and WebSocket URL. If the bot is not running, only the status is returned.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">
+  Bot UUID.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Bot display name.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current bot status.
+</ResponseField>
+
+<ResponseField name="ready" type="boolean">
+  Whether the K8s Deployment is fully ready and accepting traffic.
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  Bot ID used as the connection token.
+</ResponseField>
+
+<ResponseField name="endpoint" type="string">
+  Internal K8s service endpoint. Present when running.
+</ResponseField>
+
+<ResponseField name="ws_url" type="string">
+  WebSocket URL for the bot. Present when running and ready.
+</ResponseField>
+
+<ResponseField name="webchat_url" type="string">
+  External HTTP URL for the bot's WebChat interface. Present when running and ready.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -s "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/connect" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "name": "my-bot",
+  "status": "running",
+  "ready": true,
+  "token": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "endpoint": "bot-e3b0c442.clawhost.svc.cluster.local:3000",
+  "ws_url": "wss://my-bot.clawhost.ai",
+  "webchat_url": "https://my-bot.clawhost.ai"
+}
+```
+
+</ResponseExample>
+
+---
+
+## Upgrade
+
+`POST /bot/api/v1/bots/:id/upgrade`
+
+Updates the bot's Kubernetes Deployment to use a newer OpenClaw container image via a rolling update. After the new pod is running, the bot configuration is synced asynchronously.
+
+Returns `400` if the bot is not running. Returns a `skipped` status if the bot is already running the target image.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Request body
+
+<ParamField body="image" type="string">
+  Target container image (e.g., `1panel/openclaw:v2.1.0`). Defaults to the `openclaw.image` value from the server configuration if omitted.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Outcome: `upgraded` or `skipped`.
+</ResponseField>
+
+<ResponseField name="image" type="string">
+  Target image that was applied.
+</ResponseField>
+
+<ResponseField name="previous_image" type="string">
+  Image that was running before the upgrade. Present when `status` is `upgraded`.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Reason for skipping. Present when `status` is `skipped`.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -s -X POST "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/upgrade" \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"image": "1panel/openclaw:v2.1.0"}'
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 (upgraded)
+{
+  "status": "upgraded",
+  "image": "1panel/openclaw:v2.1.0",
+  "previous_image": "1panel/openclaw:latest"
+}
+```
+
+```json 200 (skipped)
+{
+  "status": "skipped",
+  "message": "already running target image",
+  "image": "1panel/openclaw:v2.1.0"
+}
+```
+
+</ResponseExample>

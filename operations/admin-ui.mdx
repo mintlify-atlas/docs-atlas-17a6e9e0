@@ -1,0 +1,76 @@
+---
+title: 'Admin UI'
+description: 'Built-in web admin panel for managing apps and bots in ClawHost.'
+---
+
+ClawHost ships a built-in web admin panel at `/admin`. It is built with Next.js and shadcn/ui, statically exported, and embedded directly into the Go binary — no separate deployment required.
+
+## Accessing the admin UI
+
+<Tabs>
+  <Tab title="Port-forward (in-cluster)">
+    If ClawHost is deployed inside Kubernetes, use `kubectl port-forward` to reach it locally:
+
+    ```bash
+    kubectl -n clawhost port-forward svc/clawhost 18080:18080
+    ```
+
+    Then open `http://localhost:18080/admin` in your browser.
+  </Tab>
+  <Tab title="Direct domain access">
+    If ClawHost is exposed via an ingress or load balancer, navigate to:
+
+    ```
+    https://<your-clawhost-domain>/admin
+    ```
+  </Tab>
+</Tabs>
+
+## Authentication
+
+The admin UI uses token-based authentication. On the login screen, enter the value configured as `api.admin_token` in your ClawHost configuration.
+
+```toml
+[api]
+admin_token = "my-admin-token"
+```
+
+<Note>
+The admin token grants full access to all apps and bots. Store it securely and rotate it if it is ever exposed.
+</Note>
+
+## Apps management
+
+The **Apps** section lets you manage ClawHost applications. Each app has its own API token that scopes API access to bots created within that app.
+
+| Action | Description |
+|--------|-------------|
+| Create app | Create a new app with a name, URL, description, and owner email |
+| Edit app | Update app metadata |
+| Copy API token | Copy the app's API token to the clipboard |
+| Reset API token | Generate a new API token, invalidating the previous one |
+| Delete app | Remove the app and its configuration |
+
+<Warning>
+Resetting an API token immediately invalidates the old token. Any clients using the previous token will lose access.
+</Warning>
+
+## Bots management
+
+The **Bots** section shows all bots across all apps. From here you can:
+
+| Action | Description |
+|--------|-------------|
+| List bots | View all bots with their status, app, and domain |
+| Start bot | Create the Kubernetes Deployment and Service for the bot |
+| Stop bot | Delete the Kubernetes Deployment and Service (data is preserved) |
+| Upgrade bot | Update the bot's OpenClaw container image |
+| Delete bot | Remove the bot and all associated Kubernetes resources |
+| View domain | See the bot's subdomain access URL |
+
+## Responsive layout
+
+The admin UI adapts to screen size:
+
+- **Desktop** — bots and apps are displayed in a table view with sortable columns
+- **Mobile** — the same data is presented as a card layout for easier navigation on small screens

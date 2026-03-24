@@ -1,0 +1,264 @@
+---
+title: 'Managing bots'
+description: 'Create, start, stop, restart, upgrade, and delete OpenClaw bot instances via the ClawHost API.'
+---
+
+All bot management endpoints are prefixed with `/bot/api/v1` and require an `Authorization: Bearer <token>` header using the app API token.
+
+## Creating a bot
+
+```
+POST /bot/api/v1/bots
+```
+
+### Request fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `user_id` | string | Yes | Identifier for the user who owns this bot |
+| `name` | string | Yes | Human-readable bot name |
+| `slug` | string | No | URL-safe slug for subdomain access (auto-generated if omitted) |
+| `config` | object | No | OpenClaw native config object (models, channels, agents, etc.) |
+| `expires_at` | string | No | ISO 8601 expiration timestamp; omit for no expiry |
+
+Slugs must be 1–50 characters, lowercase letters, numbers, and hyphens only, and must be unique across all bots.
+
+```bash
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user-001",
+    "name": "my-bot",
+    "slug": "my-bot",
+    "config": {
+      "models": {
+        "mode": "merge",
+        "providers": {
+          "anthropic": {
+            "apiKey": "sk-ant-xxx",
+            "models": [
+              { "id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4" }
+            ]
+          }
+        }
+      }
+    }
+  }'
+```
+
+The response includes the bot object and an `access_url` in the form `https://<slug>.<bot_domain>?token=<access_token>`.
+
+## Updating a bot
+
+```
+PUT /bot/api/v1/bots/:id
+```
+
+Updatable fields: `name`, `slug`, `config`, `expires_at`. If the bot is running and `config` is updated, the new config is synced to the pod asynchronously.
+
+```bash
+curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/$BOT_ID \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "renamed-bot"}'
+```
+
+## Starting a bot
+
+```
+POST /bot/api/v1/bots/:id/start
+```
+
+Creates a Kubernetes **Deployment** and **Service** for the bot. The bot transitions to `running` status and an `endpoint` is recorded. Bot config is written to the pod asynchronously after the K8s resources are created.
+
+```bash
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/start \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+<Note>
+The bot must be in a non-running state before calling start. Calling start on an already-running bot returns an error.
+</Note>
+
+## Stopping a bot
+
+```
+POST /bot/api/v1/bots/:id/stop
+```
+
+Deletes the Kubernetes Deployment and Service. The bot's data on the shared PVC is preserved. Status transitions to `stopped`.
+
+```bash
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/stop \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+## Restarting a bot
+
+```
+POST /bot/api/v1/bots/:id/restart
+```
+
+Performs a rolling replacement of the Deployment spec without downtime, then recreates the Service to pick up any port changes. Config is synced to the new pod after the restart completes.
+
+```bash
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/restart \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+## Checking bot status
+
+```
+GET /bot/api/v1/bots/:id/status
+```
+
+Returns the recorded status and a live readiness check against the Kubernetes Deployment.
+
+### Status values
+
+| Status | Description |
+|--------|-------------|
+| `created` | Bot record exists; no K8s resources deployed yet |
+| `starting` | K8s resources are being provisioned |
+| `running` | Deployment and Service exist and the pod is ready |
+| `stopped` | K8s resources have been deleted; data is preserved |
+| `error` | An error occurred during a lifecycle operation |
+
+### Response example
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "my-bot",
+  "status": "running",
+  "ready": true,
+  "endpoint": "10.96.0.42:8080"
+}
+```
+
+<Note>
+If the bot's recorded status is `running` but the Kubernetes Deployment no longer exists, the status is automatically corrected to `stopped` in the database.
+</Note>
+
+```bash
+curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/status \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+## Getting connection info
+
+```
+GET /bot/api/v1/bots/:id/connect
+```
+
+Returns connection details including the bot's access URL with its token for use in OpenClaw clients.
+
+```bash
+curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/connect \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+## Resetting a bot access token
+
+```
+POST /bot/api/v1/bots/:id/reset-token
+```
+
+Generates a new cryptographically secure `access_token` for the bot, invalidating the previous one. This token is used for CLI, device, and channel authentication against the bot gateway.
+
+```bash
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/reset-token \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+## Deleting a bot
+
+```
+DELETE /bot/api/v1/bots/:id
+```
+
+Removes the bot record from the database. If the bot has running K8s resources, stop it first.
+
+```bash
+curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/$BOT_ID \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+## Upgrading a bot image
+
+Upgrading updates the container image on the running Kubernetes Deployment. If the bot is already running the target image, the request is skipped without error.
+
+### Upgrade a single bot
+
+```
+POST /bot/api/v1/admin/bots/:id/upgrade
+```
+
+Requires the admin token. The bot must be in `running` status.
+
+```bash
+curl -s -X POST https://clawhost.example.com/bot/api/v1/admin/bots/$BOT_ID/upgrade \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"image": "1panel/openclaw:latest"}'
+```
+
+If `image` is omitted, the value from `openclaw.image` in the ClawHost configuration is used.
+
+**Response example:**
+
+```json
+{
+  "status": "upgraded",
+  "image": "1panel/openclaw:latest",
+  "previous_image": "1panel/openclaw:1.2.0"
+}
+```
+
+### Bulk upgrade all running bots
+
+```
+POST /bot/api/v1/admin/bots/upgrade
+```
+
+Upgrades all bots currently in `running` status concurrently (up to 10 at a time).
+
+```bash
+curl -s -X POST https://clawhost.example.com/bot/api/v1/admin/bots/upgrade \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"image": "1panel/openclaw:latest"}'
+```
+
+**Response example:**
+
+```json
+{
+  "image": "1panel/openclaw:latest",
+  "total": 5,
+  "upgraded": 4,
+  "failed": 0,
+  "skipped": 1,
+  "results": [
+    { "bot_id": "abc123", "status": "upgraded" },
+    { "bot_id": "def456", "status": "skipped", "message": "already running target image" }
+  ]
+}
+```
+
+## Bot slugs and subdomain access
+
+Each bot has a `slug` — a unique URL-safe identifier used for subdomain routing. When a bot is created without a slug, one is auto-generated from the first 8 characters of the bot ID.
+
+Bots are accessible at:
+
+```
+https://<slug>.<bot_domain_suffix>
+```
+
+For example, if `domain.bot_domain_suffix` is set to `clawhost.ai`, a bot with slug `my-bot` is reachable at `https://my-bot.clawhost.ai`.
+
+<Tip>
+The full access URL including the bot token is returned in the `access_url` field when creating or updating a bot.
+</Tip>

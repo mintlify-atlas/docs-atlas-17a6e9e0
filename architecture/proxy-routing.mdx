@@ -1,0 +1,184 @@
+---
+title: Proxy routing
+description: How ClawHost routes HTTP and WebSocket traffic to bot pods using path-based and subdomain-based routing.
+---
+
+ClawHost includes a built-in reverse proxy that forwards client traffic to the correct OpenClaw pod. It supports both regular HTTP and WebSocket connections, and can be reached via two routing modes.
+
+## Routing modes
+
+<Tabs>
+  <Tab title="Path-based">
+    All requests under `/proxy/:bot_id/*` are routed to the bot identified by `:bot_id`.
+
+    The identifier can be:
+    - A full UUID (e.g., `550e8400-e29b-41d4-a716-446655440000`)
+    - A bot slug (e.g., `my-bot`)
+
+    ```http
+    GET /proxy/550e8400-e29b-41d4-a716-446655440000/
+    GET /proxy/my-bot/v1/chat/completions
+    ```
+
+    The proxy uses `isUUID()` to determine whether the path parameter is a UUID or a slug, then calls `model.GetBotByID` or `model.GetBotBySlug` accordingly.
+  </Tab>
+  <Tab title="Subdomain-based">
+    Requests arriving with a `Host` header matching `{bot-slug}.{bot_domain_suffix}` are routed to the bot whose slug matches the subdomain.
+
+    Configure the domain suffix in `config.toml`:
+
+    ```toml
+    [domain]
+    bot_domain_suffix = "clawhost.ai"
+    ```
+
+    With this configuration, a request to `my-bot.clawhost.ai` routes to the bot with `slug = "my-bot"`.
+
+    <Note>
+    Subdomain routing requires a wildcard DNS entry (e.g., `*.clawhost.ai`) pointing to the ClawHost server. For local development, see the [Caddy setup](#local-development-with-caddy) below.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Request routing logic
+
+Once the proxy identifies the target bot, it selects the backend endpoint based on the request type:
+
+```
+Incoming request
+       │
+       ├── bot.Status != running → 400 Bad Request
+       │
+       ├── Is API path? (/v1/*)  ──────────────────────────▶ OpenClaw gateway port
+       │
+       ├── Is WebSocket upgrade? ───────────────────────────▶ OpenClaw gateway port
+       │
+       └── Otherwise (WebUI) ─── ChatClaw enabled? ─── Yes ─▶ ChatClaw sidecar port
+                                                  └── No  ─▶ OpenClaw gateway port
+```
+
+- **API paths** (`/v1/*`) and WebSocket requests always reach the OpenClaw gateway directly (port `18789` by default).
+- **WebUI requests** are routed to the ChatClaw sidecar (port `3000` by default) when ChatClaw is enabled. If the bot's Service does not yet have the `chatclaw` port (because it was started before ChatClaw was enabled), the proxy falls back to the gateway port.
+
+The backend host is resolved by calling `k8s.GetServiceEndpoint` or `k8s.GetWebUIEndpoint`, which returns the in-cluster DNS name `<svc>.<namespace>.svc.cluster.local:<port>`. In local development mode (`kubernetes.local_dev = true`), the Service's `ClusterIP` is used directly.
+
+## HTTP proxying
+
+For regular HTTP requests the proxy uses Go's `net/http/httputil.ReverseProxy`.
+
+The `Director` function rewrites the request before forwarding:
+- Sets `Host` to the target pod hostname
+- Rewrites `URL.Path` to the remaining path after the bot identifier
+- Preserves the original `URL.RawQuery`
+- Injects `X-Real-IP` and `X-Forwarded-For` headers with the real client IP
+- For API paths (`/v1/*`), injects `Authorization: Bearer <bot.AccessToken>` so the gateway token-auth check passes
+
+## WebSocket proxying
+
+When the request carries an `Upgrade: websocket` header, the proxy switches to a bidirectional WebSocket bridge.
+
+<Steps>
+  <Step title="Upgrade client connection">
+    The `gorilla/websocket` upgrader accepts the client's upgrade request. The `CheckOrigin` function allows all origins.
+  </Step>
+  <Step title="Dial backend">
+    A new WebSocket connection is opened to the backend pod at `ws://<target-host><path>?<query>`. The following headers are forwarded to the backend:
+    - `Origin` — set to `http://<target-host>` to satisfy OpenClaw's origin check
+    - `Sec-WebSocket-Protocol` — forwarded verbatim if present
+    - `Authorization` — forwarded for password-auth setups
+    - `Cookie` — forwarded for session continuity
+    - `X-Real-IP` and `X-Forwarded-For`
+  </Step>
+  <Step title="Bidirectional forwarding">
+    Two goroutines pump messages in each direction:
+    - **Client → Backend**: reads from the client connection, writes to the backend connection
+    - **Backend → Client**: reads from the backend connection, writes to the client connection
+
+    The proxy waits for either goroutine to return an error (i.e., either side closes the connection), then terminates both connections.
+  </Step>
+</Steps>
+
+## Session authentication
+
+The proxy supports three ways to authenticate a request to a bot:
+
+| Method | How |
+|---|---|
+| Query parameter | `?token=<access_token>` on the initial request |
+| Authorization header | `Authorization: Bearer <access_token>` |
+| Session cookie | `_claw_session` cookie set by a previous authenticated request |
+
+The session cookie value is an HMAC-SHA256 signature of `botID` keyed by `accessToken`. This means the raw access token is never stored in the cookie, and the cookie is automatically invalidated if the access token is reset.
+
+When ChatClaw mode is active, token or cookie authentication is required and enforced synchronously. In legacy OpenClaw WebUI mode, authentication via `?token=` also triggers the device auto-approval poller.
+
+## Subdomain routing config
+
+The following configuration keys in `config.toml` control subdomain routing:
+
+```toml
+[domain]
+api_domain           = "clawhost.ai"              # Domain for the ClawHost API itself
+bot_domain_suffix    = "clawhost.ai"              # Suffix for bot subdomains
+bot_domain_template  = "https://{bot_id}.clawhost.ai"  # Template for bot URLs returned by the API
+```
+
+The `bot_domain_template` is stored per-app in `App.BotDomainTemplate` and used when constructing the public URL shown to users for a given bot.
+
+## Local development with Caddy
+
+For local development, [Caddy](https://caddyserver.com/) can terminate TLS and route all subdomains to ClawHost.
+
+<Steps>
+  <Step title="Create a Caddyfile">
+    ```caddyfile
+    # API and admin UI
+    clawhost.loc {
+        tls internal
+        reverse_proxy localhost:18080
+    }
+
+    # Bot subdomains
+    *.clawhost.loc {
+        tls internal
+        reverse_proxy localhost:18080
+    }
+    ```
+  </Step>
+  <Step title="Run Caddy">
+    ```bash
+    caddy run
+    ```
+  </Step>
+  <Step title="Add DNS entries">
+    Add the base domain to `/etc/hosts`:
+
+    ```
+    127.0.0.1  clawhost.loc
+    ```
+
+    For wildcard subdomain resolution (`*.clawhost.loc`), `/etc/hosts` does not support wildcards. Use [dnsmasq](https://thekelleys.org.uk/dnsmasq/doc.html) or a local DNS resolver. On macOS with OrbStack, `*.orb.local` domains work out of the box.
+  </Step>
+  <Step title="Set local_dev mode">
+    In `config.toml`, enable local dev mode so the proxy uses the pod's `ClusterIP` instead of the in-cluster DNS name:
+
+    ```toml
+    [kubernetes]
+    local_dev = true
+    ```
+  </Step>
+</Steps>
+
+## Health check
+
+ClawHost exposes a health check endpoint that does not require authentication:
+
+```http
+GET /health
+```
+
+This endpoint is used by Kubernetes liveness and readiness probes when ClawHost is itself deployed inside the cluster.
+
+```bash
+curl http://localhost:18080/health
+```

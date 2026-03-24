@@ -1,0 +1,241 @@
+---
+title: 'IM channels'
+description: 'Connect OpenClaw bots to messaging platforms including Telegram, Slack, Discord, Teams, LINE, and Feishu.'
+---
+
+ClawHost proxies channel management operations to the running OpenClaw bot pod. All channel endpoints require the bot to be in `running` status.
+
+## Supported channels
+
+| Channel | Identifier | Required credentials |
+|---------|------------|---------------------|
+| Telegram | `telegram` | `botToken` |
+| Discord | `discord` | `botToken` |
+| Slack | `slack` | `botToken`, `appToken` |
+| Microsoft Teams | `teams` | `appId`, `appPassword` |
+| LINE | `line` | `botToken`, `channelSecret` |
+| Feishu / Lark | `feishu` | `appId`, `appSecret` |
+
+## Adding a channel
+
+```
+POST /bot/api/v1/bots/:id/channels
+```
+
+### Request fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `channel` | string | Yes | Channel type identifier (e.g., `telegram`) |
+| `account` | string | No | Account name for multi-account support (default: `default`) |
+| `botToken` | string | No | Bot token for Telegram, Discord, Slack |
+| `token` | string | No | Alias for `botToken` (legacy format) |
+| `appToken` | string | No | Slack app token (`xapp-...`) |
+| `appId` | string | No | App ID for Feishu or Teams |
+| `appSecret` | string | No | App secret for Feishu |
+| `appPassword` | string | No | App password for Teams |
+| `channelSecret` | string | No | Channel secret for LINE |
+| `dmPolicy` | string | No | DM policy: `pairing`, `allowlist`, `open`, or `disabled` |
+| `groupPolicy` | string | No | Group policy: `open`, `allowlist`, or `disabled` |
+| `allowFrom` | array | No | List of allowed user or group identifiers |
+| `enabled` | boolean | No | Enable or disable the channel |
+| `extra` | object | No | Any additional channel-specific config fields |
+
+<Tabs>
+  <Tab title="Telegram">
+    ```bash
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "channel": "telegram",
+        "botToken": "123456:ABC-DEF",
+        "dmPolicy": "pairing"
+      }'
+    ```
+  </Tab>
+  <Tab title="Slack">
+    ```bash
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "channel": "slack",
+        "botToken": "xoxb-...",
+        "appToken": "xapp-...",
+        "dmPolicy": "open"
+      }'
+    ```
+  </Tab>
+  <Tab title="Discord">
+    ```bash
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "channel": "discord",
+        "botToken": "MTI3...",
+        "dmPolicy": "open"
+      }'
+    ```
+  </Tab>
+  <Tab title="Feishu">
+    ```bash
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "channel": "feishu",
+        "appId": "cli_xxx",
+        "appSecret": "yyy"
+      }'
+    ```
+  </Tab>
+  <Tab title="Teams">
+    ```bash
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "channel": "teams",
+        "appId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "appPassword": "xxx"
+      }'
+    ```
+  </Tab>
+  <Tab title="LINE">
+    ```bash
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "channel": "line",
+        "botToken": "xxx",
+        "channelSecret": "yyy"
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+**Response example:**
+
+```json
+{
+  "message": "channel added successfully",
+  "channel": "telegram",
+  "account": "default"
+}
+```
+
+## Listing channels
+
+```
+GET /bot/api/v1/bots/:id/channels
+```
+
+Returns the channels currently configured on the running bot pod.
+
+```bash
+curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+## Removing a channel
+
+```
+DELETE /bot/api/v1/bots/:id/channels/:channel
+```
+
+To remove a specific account within a channel, pass `?account=<name>`. Without the query parameter, the entire channel is removed.
+
+```bash
+# Remove entire channel
+curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram \
+  -H "Authorization: Bearer $API_TOKEN"
+
+# Remove a specific account only
+curl -s -X DELETE "https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram?account=secondary" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+## Device pairing workflow
+
+When `dmPolicy` is set to `pairing`, users must be approved before they can message the bot. ClawHost exposes pairing management endpoints that proxy to the bot gateway.
+
+### List pending pairing requests
+
+```
+GET /bot/api/v1/bots/:id/channels/:channel/pairing
+```
+
+```bash
+curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram/pairing \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+### Approve a pairing request
+
+```
+POST /bot/api/v1/bots/:id/channels/:channel/pairing/approve
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `code` | string | Yes | Pairing code presented by the user in the channel (e.g., `JDB55KTQ`) |
+
+```bash
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram/pairing/approve \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"code": "JDB55KTQ"}'
+```
+
+**Response example:**
+
+```json
+{
+  "message": "pairing approved successfully",
+  "channel": "telegram",
+  "code": "JDB55KTQ",
+  "output": "..."
+}
+```
+
+### Revoke a pairing
+
+```
+POST /bot/api/v1/bots/:id/channels/:channel/pairing/revoke
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `user_id` | string | Yes | Channel-specific user ID to revoke (e.g., `1743739674`) |
+
+```bash
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram/pairing/revoke \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "1743739674"}'
+```
+
+### Get paired users
+
+```
+GET /bot/api/v1/bots/:id/channels/:channel/pairing/users
+```
+
+Returns the list of users who have been approved to interact with the bot on the specified channel.
+
+```bash
+curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram/pairing/users \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+**Response example:**
+
+```json
+{
+  "channel": "telegram",
+  "users": ["1743739674", "9876543210"]
+}
+```

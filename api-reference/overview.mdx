@@ -1,0 +1,190 @@
+---
+title: API reference overview
+description: Base URL, authentication, response format, and full endpoint index for the ClawHost API.
+---
+
+## Base URL
+
+All API endpoints are served on port `18080`:
+
+```
+http://<host>:18080
+```
+
+All bot and app routes are prefixed with `/bot/api/v1`.
+
+## Authentication
+
+Most routes require an `Authorization` header with a Bearer token:
+
+```bash
+Authorization: Bearer <token>
+```
+
+ClawHost uses two types of tokens:
+
+| Token type | Used for | Configured via |
+| --- | --- | --- |
+| **Admin token** | `/bot/api/v1/admin/*` routes | `api.admin_token` in `config.toml` |
+| **App token** | `/bot/api/v1/bots/*` routes | Generated per app, returned on app creation |
+
+The **admin token** is a static secret you configure when deploying ClawHost. The **app token** (`api_token`) is generated automatically when you create an app and scoped to that app's bots.
+
+<Note>
+  The `GET /health` endpoint does not require authentication.
+</Note>
+
+## Health check
+
+```
+GET /health
+```
+
+No authentication required. Returns `200 OK` with a JSON status body when the server is running.
+
+```json
+{ "status": "ok" }
+```
+
+## Response format
+
+All responses are JSON. Successful responses follow this envelope:
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": { ... }
+}
+```
+
+Error responses include an HTTP error status code and a JSON body with details:
+
+```json
+{
+  "code": 400,
+  "message": "name is required"
+}
+```
+
+## Error codes
+
+| HTTP status | Meaning |
+| --- | --- |
+| `400` | Bad request — invalid or missing parameters |
+| `401` | Unauthorized — missing or invalid token |
+| `403` | Forbidden — token valid but not authorized for this resource |
+| `404` | Not found — resource does not exist |
+| `500` | Internal server error |
+
+## Rate limiting
+
+The ClawHost API does not enforce rate limiting at the application level. Apply rate limiting at your load balancer or ingress layer if needed.
+
+## Endpoint index
+
+### Admin: Apps
+
+Requires admin token.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/bot/api/v1/admin/apps` | [Create app](/api-reference/admin/apps#create-app) |
+| `GET` | `/bot/api/v1/admin/apps` | [List apps](/api-reference/admin/apps#list-apps) |
+| `GET` | `/bot/api/v1/admin/apps/:id` | [Get app](/api-reference/admin/apps#get-app) |
+| `PUT` | `/bot/api/v1/admin/apps/:id` | [Update app](/api-reference/admin/apps#update-app) |
+| `DELETE` | `/bot/api/v1/admin/apps/:id` | [Delete app](/api-reference/admin/apps#delete-app) |
+| `POST` | `/bot/api/v1/admin/apps/:id/reset-token` | [Reset app API token](/api-reference/admin/apps#reset-app-api-token) |
+
+### Admin: Bot upgrade
+
+Requires admin token.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/bot/api/v1/admin/bots/upgrade` | [Upgrade all bots](/api-reference/admin/bot-upgrade#upgrade-all-bots) |
+| `POST` | `/bot/api/v1/admin/bots/:id/upgrade` | [Upgrade a specific bot](/api-reference/admin/bot-upgrade#upgrade-a-specific-bot) |
+
+### Bots
+
+Requires app token. Bot instance routes also enforce app ownership.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/bot/api/v1/bots` | Create bot |
+| `GET` | `/bot/api/v1/bots` | List bots |
+| `GET` | `/bot/api/v1/bots/:id` | Get bot |
+| `PUT` | `/bot/api/v1/bots/:id` | Update bot |
+| `DELETE` | `/bot/api/v1/bots/:id` | Delete bot |
+| `POST` | `/bot/api/v1/bots/:id/start` | Start bot |
+| `POST` | `/bot/api/v1/bots/:id/stop` | Stop bot |
+| `POST` | `/bot/api/v1/bots/:id/restart` | Restart bot |
+| `GET` | `/bot/api/v1/bots/:id/status` | Get bot status |
+| `GET` | `/bot/api/v1/bots/:id/connect` | Get connection info |
+| `POST` | `/bot/api/v1/bots/:id/reset-token` | Reset bot access token |
+
+### Skills
+
+Requires app token.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/bot/api/v1/bots/:id/skills` | List skills |
+| `PUT` | `/bot/api/v1/bots/:id/skills/:name` | Upsert skill |
+| `DELETE` | `/bot/api/v1/bots/:id/skills/:name` | Delete skill |
+
+### IM channels
+
+Requires app token.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/bot/api/v1/bots/:id/channels` | Add channel |
+| `GET` | `/bot/api/v1/bots/:id/channels` | List channels |
+| `DELETE` | `/bot/api/v1/bots/:id/channels/:channel` | Remove channel |
+| `GET` | `/bot/api/v1/bots/:id/channels/:channel/pairing` | List pairing requests |
+| `POST` | `/bot/api/v1/bots/:id/channels/:channel/pairing/approve` | Approve pairing |
+| `POST` | `/bot/api/v1/bots/:id/channels/:channel/pairing/revoke` | Revoke pairing |
+| `GET` | `/bot/api/v1/bots/:id/channels/:channel/pairing/users` | Get paired users |
+
+### Devices
+
+Requires app token.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/bot/api/v1/bots/:id/devices` | List devices |
+| `POST` | `/bot/api/v1/bots/:id/devices/:request_id/approve` | Approve device |
+| `DELETE` | `/bot/api/v1/bots/:id/devices/:device_id` | Revoke device |
+
+### Model providers
+
+Requires app token.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/bot/api/v1/bots/:id/config/models` | List providers |
+| `POST` | `/bot/api/v1/bots/:id/config/models` | Add provider |
+| `GET` | `/bot/api/v1/bots/:id/config/models/:provider` | Get provider |
+| `PUT` | `/bot/api/v1/bots/:id/config/models/:provider` | Update provider |
+| `DELETE` | `/bot/api/v1/bots/:id/config/models/:provider` | Delete provider |
+
+### Agent defaults
+
+Requires app token.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/bot/api/v1/bots/:id/config/defaults` | Get agent defaults |
+| `PUT` | `/bot/api/v1/bots/:id/config/defaults` | Set agent defaults |
+
+### Proxy
+
+No authentication required at the proxy layer. The target bot enforces its own access control.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `ANY` | `/proxy/:bot_id/*` | HTTP proxy to bot instance |
+| `WS` | `/proxy/:bot_id/*` | WebSocket proxy to bot instance |
+
+Subdomain routing is also supported: requests to `{bot-id}.{bot_domain}/*` are automatically routed to the corresponding bot without a path prefix.

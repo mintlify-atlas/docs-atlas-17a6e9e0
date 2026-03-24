@@ -1,0 +1,96 @@
+---
+title: 'Skills'
+description: 'Dynamically add, update, and remove skills on running OpenClaw bot instances.'
+---
+
+Skills are dynamic extensions that add capabilities to a running bot. Each skill is a directory named after the skill, containing a `SKILL.md` file that describes the skill's behavior and instructions. Skills are written directly into the running pod's filesystem at `/app/.openclaw/workspace/skills/<name>/SKILL.md`.
+
+<Note>
+All skill operations require the bot to be in `running` status. Skills are managed live on the active pod and do not persist to the database — they live on the shared PVC mounted to the pod.
+</Note>
+
+## Listing skills
+
+```
+GET /bot/api/v1/bots/:id/skills
+```
+
+Returns all skill names currently present in the bot pod's skills directory.
+
+```bash
+curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/skills \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+**Response example:**
+
+```json
+[
+  { "name": "code-review" },
+  { "name": "summarizer" }
+]
+```
+
+If the skills directory does not exist yet, an empty array is returned.
+
+## Adding or updating a skill
+
+```
+PUT /bot/api/v1/bots/:id/skills/:name
+```
+
+Creates or replaces a skill with the given name. The `:name` path parameter becomes the skill directory name. The `content` field is written to `SKILL.md` inside that directory.
+
+### Request fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `content` | string | Yes | Markdown content for the skill's `SKILL.md` file |
+
+```bash
+curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/skills/code-review \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "# Code Review\n\nYou are a code reviewer. When asked to review code, check for:\n- Correctness\n- Security issues\n- Performance concerns"
+  }'
+```
+
+**Response example:**
+
+```json
+{
+  "message": "skill updated",
+  "name": "code-review"
+}
+```
+
+<Tip>
+Skill names become directory names in the pod filesystem. Use lowercase letters, numbers, and hyphens for maximum compatibility.
+</Tip>
+
+## Deleting a skill
+
+```
+DELETE /bot/api/v1/bots/:id/skills/:name
+```
+
+Removes the skill directory and all its contents from the pod.
+
+```bash
+curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/skills/code-review \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+**Response example:**
+
+```json
+{
+  "message": "skill deleted",
+  "name": "code-review"
+}
+```
+
+## How skills are synced
+
+Skill operations execute directly against the running pod via the Kubernetes exec API. There is no intermediary sync step — writes take effect immediately on the running OpenClaw process. Because skills reside on the shared PVC, they survive pod restarts for the same bot.

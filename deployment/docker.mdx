@@ -1,0 +1,140 @@
+---
+title: 'Docker'
+description: 'Build and run ClawHost with Docker. Suitable for local development or when deploying to a host that has access to a Kubernetes cluster.'
+---
+
+ClawHost can be run as a Docker container. The container connects to an external PostgreSQL database and manages bots in a Kubernetes cluster via a kubeconfig file mounted from the host.
+
+## Prerequisites
+
+- Docker 24+
+- A running PostgreSQL instance (see below for a quick Docker-based option)
+- A Kubernetes cluster reachable from the container, with a kubeconfig file
+
+<Info>
+  ClawHost does not need to run inside a Kubernetes cluster. It only needs a kubeconfig that can reach the cluster API server.
+</Info>
+
+## Building the image
+
+ClawHost uses a multi-stage Dockerfile.
+
+```dockerfile
+# Stage 1 — Build the Next.js admin UI
+FROM node:20-alpine AS frontend
+WORKDIR /app/web/admin
+COPY web/admin/package.json web/admin/package-lock.json ./
+RUN npm ci
+COPY web/admin/ .
+RUN npx next build --webpack
+
+# Stage 2 — Build the Go binary
+FROM golang:1.24-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+COPY --from=frontend /app/web/admin/out ./web/admin/out
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o clawhost .
+
+# Stage 3 — Minimal runtime image
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates tzdata
+WORKDIR /app
+COPY --from=builder /app/clawhost .
+EXPOSE 18080
+CMD ["./clawhost", "server"]
+```
+
+The final image contains only the compiled binary and a minimal Alpine base, keeping the image small. Build it:
+
+```bash
+docker build -t clawhost:latest .
+```
+
+## Running the container
+
+ClawHost reads its configuration from a `config.toml` file. Mount your local config into the container:
+
+```bash
+docker run -p 18080:18080 \
+  -v ./config.toml:/app/config.toml \
+  clawhost:latest
+```
+
+To also provide a kubeconfig (for accessing a remote cluster):
+
+```bash
+docker run -p 18080:18080 \
+  -v ./config.toml:/app/config.toml \
+  -v ~/.kube/config:/root/.kube/config:ro \
+  clawhost:latest
+```
+
+Then verify the server is running:
+
+```bash
+curl http://localhost:18080/health
+```
+
+## Starting a local PostgreSQL instance
+
+If you do not have an existing PostgreSQL database, start one with Docker:
+
+```bash
+docker run -d --name clawhost-pg \
+  -e POSTGRES_DB=clawhost \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  postgres:16
+```
+
+Then point your `config.toml` at it:
+
+```toml
+[db]
+host = "host.docker.internal"  # reaches the host from inside the container
+port = 5432
+user = "postgres"
+password = "postgres"
+database = "clawhost"
+```
+
+<Note>
+  On Linux, use `172.17.0.1` (the default Docker bridge gateway) instead of `host.docker.internal`, or use `--network host`.
+</Note>
+
+## Configuration file
+
+Copy the example config and edit it before running:
+
+```bash
+cp config.example.toml config.toml
+```
+
+Minimum settings to configure:
+
+```toml
+[api]
+admin_token = "your-secure-token"
+
+[db]
+host = "localhost"
+password = "your-db-password"
+
+[kubernetes]
+kubeconfig = "/root/.kube/config"  # path inside the container
+namespace = "clawhost"
+
+[domain]
+api_domain = "clawhost.loc"
+bot_domain_suffix = "clawhost.loc"
+bot_domain_template = "https://{bot_id}.clawhost.loc"
+```
+
+See the [Configuration reference](/deployment/configuration) for all options.
+
+## No Docker Compose file
+
+There is no Docker Compose file included in the repository. For a local multi-container setup, refer to the [Kubernetes manifests](/deployment/kubernetes) guide, which includes PostgreSQL. Alternatively, use the [Helm chart](/deployment/helm) for a fully automated Kubernetes-based deployment.

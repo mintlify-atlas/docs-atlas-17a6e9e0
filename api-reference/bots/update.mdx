@@ -1,0 +1,131 @@
+---
+title: 'Update bot'
+description: 'Update a bot name, slug, config, or expiry. If the bot is running and the config is changed, the new config is synced to the live pod asynchronously.'
+---
+
+`PUT /bot/api/v1/bots/:id`
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for the app. Format: `Bearer <app-token>`
+</ParamField>
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+## Request body
+
+All fields are optional. Only provided fields are updated.
+
+<ParamField body="name" type="string">
+  New display name.
+</ParamField>
+
+<ParamField body="slug" type="string">
+  New URL slug. Must be 1–50 characters: lowercase letters, numbers, and hyphens only. Must be globally unique.
+</ParamField>
+
+<ParamField body="config" type="object">
+  Full OpenClaw configuration to replace the existing config. See the [Create bot](/api-reference/bots/create) request body for the full config schema.
+
+  If the bot is currently `running`, the updated config is synced to the live K8s pod asynchronously after the response is returned.
+</ParamField>
+
+<ParamField body="expires_at" type="string">
+  ISO 8601 expiry timestamp. Use to renew or change the expiry. Set to `null` to remove expiry.
+</ParamField>
+
+## Response
+
+The updated Bot object.
+
+<ResponseField name="id" type="string">
+  Unique bot UUID.
+</ResponseField>
+
+<ResponseField name="app_id" type="string">
+  ID of the app that owns this bot.
+</ResponseField>
+
+<ResponseField name="user_id" type="string">
+  ID of the user who owns this bot.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Display name.
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  URL-friendly identifier.
+</ResponseField>
+
+<ResponseField name="access_token" type="string">
+  Bot-level access token.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current bot status.
+</ResponseField>
+
+<ResponseField name="config" type="object">
+  Updated OpenClaw configuration.
+</ResponseField>
+
+<ResponseField name="endpoint" type="string">
+  Internal K8s service endpoint.
+</ResponseField>
+
+<ResponseField name="expires_at" type="string">
+  Updated expiry timestamp, or `null`.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 creation timestamp.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO 8601 last-updated timestamp.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -s -X PUT "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID" \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-renamed-bot",
+    "config": {
+      "model": "claude-opus-4-5-20251101",
+      "api_key": "sk-ant-xxx"
+    }
+  }'
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "app_id": "a1b2c3d4-0000-0000-0000-000000000001",
+  "user_id": "user-001",
+  "name": "my-renamed-bot",
+  "slug": "my-bot",
+  "access_token": "4a7f92bd1e05c3f8a2d6b1e7f3c9a0d2",
+  "status": "running",
+  "config": {
+    "model": "claude-opus-4-5-20251101",
+    "api_key": "sk-ant-xxx"
+  },
+  "endpoint": "bot-e3b0c442.clawhost.svc.cluster.local:3000",
+  "expires_at": null,
+  "created_at": "2026-03-24T10:00:00Z",
+  "updated_at": "2026-03-24T11:00:00Z"
+}
+```
+
+</ResponseExample>

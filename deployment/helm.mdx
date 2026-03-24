@@ -1,0 +1,151 @@
+---
+title: 'Helm deployment'
+description: 'Deploy ClawHost on Kubernetes using the official Helm chart. Recommended for production and staging environments.'
+---
+
+Helm is the recommended way to deploy ClawHost. It installs ClawHost, PostgreSQL, RBAC resources, and shared storage in a single command.
+
+## Prerequisites
+
+- Kubernetes 1.28+
+- [Helm v3](https://helm.sh/docs/intro/install/)
+- `kubectl` configured to reach your cluster
+- Docker (to build the ClawHost image locally)
+
+## Quick start
+
+<Steps>
+  <Step title="Build the Docker image">
+    ClawHost does not publish a public image, so you must build it locally first.
+
+    ```bash
+    docker build -t clawhost:latest .
+    ```
+
+    <Note>
+      If your cluster cannot pull from your local Docker daemon (e.g. a remote cluster), push the image to a registry and set `server.image.repository` and `server.image.tag` accordingly.
+    </Note>
+  </Step>
+
+  <Step title="Install the Helm chart">
+    ```bash
+    helm install clawhost deploy/helm/clawhost \
+      -n clawhost --create-namespace \
+      --set adminToken="my-admin-token" \
+      --set domain.botDomain="clawhost.loc"
+    ```
+
+    This deploys ClawHost, a bundled PostgreSQL instance, RBAC resources, and a shared PVC for bot data into the `clawhost` namespace.
+  </Step>
+
+  <Step title="Verify the deployment">
+    ```bash
+    kubectl -n clawhost get pods
+    ```
+
+    Wait until all pods show `Running`. Then port-forward to test locally:
+
+    ```bash
+    kubectl -n clawhost port-forward svc/clawhost 18080:18080
+    curl http://localhost:18080/health
+    ```
+  </Step>
+</Steps>
+
+## Helm values reference
+
+All configurable values are in `deploy/helm/clawhost/values.yaml`.
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `adminToken` | `change-me` | Admin API token. Required — change before deploying. |
+| `server.image.repository` | `clawhost` | ClawHost container image repository. |
+| `server.image.tag` | `latest` | ClawHost image tag. |
+| `server.replicas` | `1` | Number of ClawHost replicas. |
+| `postgresql.enabled` | `true` | Deploy a bundled PostgreSQL instance. Set to `false` to use an external database. |
+| `postgresql.auth.password` | `postgres` | Password for the bundled PostgreSQL instance. |
+| `externalDatabase.host` | `""` | External database hostname (used when `postgresql.enabled=false`). |
+| `storage.size` | `10Gi` | Size of the shared PVC for bot data. |
+| `openclaw.image` | `1panel/openclaw:latest` | Container image for OpenClaw bot pods. |
+| `openclaw.cpuLimit` | `2000m` | CPU limit for each bot pod. |
+| `openclaw.memoryLimit` | `8Gi` | Memory limit for each bot pod. |
+| `domain.botDomain` | `clawhost.ai` | Domain used for bot subdomains and the API (unless `domain.apiDomain` is set separately). |
+| `ingress.enabled` | `false` | Enable Kubernetes Ingress resource. |
+
+## Using an external database
+
+To use your own PostgreSQL instance instead of the bundled one:
+
+```bash
+helm install clawhost deploy/helm/clawhost \
+  -n clawhost --create-namespace \
+  --set adminToken="my-token" \
+  --set postgresql.enabled=false \
+  --set externalDatabase.host="db.example.com" \
+  --set externalDatabase.password="secret"
+```
+
+Additional external database parameters:
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `externalDatabase.port` | `5432` | Database port. |
+| `externalDatabase.user` | `postgres` | Database username. |
+| `externalDatabase.database` | `clawhost` | Database name. |
+| `externalDatabase.sslmode` | `disable` | PostgreSQL SSL mode. |
+
+## Enabling the ChatClaw sidecar
+
+ChatClaw is an optional WebUI that can be deployed as a sidecar alongside each OpenClaw bot pod. When disabled (the default), OpenClaw's built-in WebUI is used instead.
+
+To enable ChatClaw, set the image in your values:
+
+```bash
+helm install clawhost deploy/helm/clawhost \
+  -n clawhost --create-namespace \
+  --set adminToken="my-token" \
+  --set chatclaw.image="chatclaw:latest"
+```
+
+Or via a values file:
+
+```yaml
+chatclaw:
+  image: "chatclaw:latest"
+  port: 3000
+  cpuLimit: "1000m"
+  memoryLimit: "1Gi"
+  cpuRequest: "100m"
+  memoryRequest: "256Mi"
+  dbBackend: "drizzle"
+  dataDir: "/data"
+  authEnabled: "false"
+  multiCompany: "false"
+```
+
+## Upgrading
+
+```bash
+helm upgrade clawhost deploy/helm/clawhost -n clawhost
+```
+
+To pass updated values during an upgrade:
+
+```bash
+helm upgrade clawhost deploy/helm/clawhost -n clawhost \
+  --set openclaw.image="1panel/openclaw:v2.0.0"
+```
+
+## Uninstalling
+
+```bash
+helm uninstall clawhost -n clawhost
+```
+
+<Warning>
+  Uninstalling the chart does not delete PersistentVolumeClaims. To remove all data, delete the PVCs manually:
+
+  ```bash
+  kubectl -n clawhost delete pvc --all
+  ```
+</Warning>
