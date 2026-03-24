@@ -1,0 +1,165 @@
+{
+  "projectType": "infrastructure",
+  "projectName": "ClawHost",
+  "projectDescription": "Kubernetes-native platform for deploying, managing, and orchestrating OpenClaw AI bot instances with a RESTful API and built-in admin UI.",
+  "theme": "aspen",
+  "primaryColor": "#cd3434",
+  "lightColor": "#0b3334",
+  "darkColor": "#fb4c4c",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/bot-lifecycle",
+              "architecture/proxy-routing"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/helm",
+              "deployment/kubernetes",
+              "deployment/docker",
+              "deployment/configuration"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "operations/admin-ui",
+              "operations/managing-bots",
+              "operations/skills",
+              "operations/im-channels",
+              "operations/model-providers"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/authentication",
+              "security/multi-tenancy"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/overview"
+            ]
+          },
+          {
+            "group": "Admin",
+            "pages": [
+              "api-reference/admin/apps",
+              "api-reference/admin/bot-upgrade"
+            ]
+          },
+          {
+            "group": "Bots",
+            "pages": [
+              "api-reference/bots/create",
+              "api-reference/bots/list",
+              "api-reference/bots/get",
+              "api-reference/bots/update",
+              "api-reference/bots/delete",
+              "api-reference/bots/lifecycle",
+              "api-reference/bots/status"
+            ]
+          },
+          {
+            "group": "Bot Configuration",
+            "pages": [
+              "api-reference/config/model-providers",
+              "api-reference/config/agent-defaults",
+              "api-reference/config/skills"
+            ]
+          },
+          {
+            "group": "Channels & Devices",
+            "pages": [
+              "api-reference/channels/im-channels",
+              "api-reference/channels/devices"
+            ]
+          },
+          {
+            "group": "Proxy",
+            "pages": [
+              "api-reference/proxy/overview"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Bot lifecycle management (create, start, stop, restart, upgrade, delete)",
+    "Kubernetes-native orchestration with isolated Pod per bot",
+    "Multi-tenant app-level isolation with per-user bot ownership",
+    "Dynamic skills management for running bots",
+    "IM channel integrations (Telegram, Slack, Discord, Teams, LINE, Feishu)",
+    "Device pairing with auto-approval support",
+    "Multi-provider AI model configuration (Anthropic, OpenAI, MiniMax, etc.)",
+    "HTTP and WebSocket proxy with subdomain routing",
+    "Built-in Next.js admin UI embedded in Go binary",
+    "Helm chart and raw K8s manifest deployment options"
+  ],
+  "publicApiSurface": [
+    "POST /bot/api/v1/admin/apps",
+    "GET /bot/api/v1/admin/apps",
+    "GET /bot/api/v1/admin/apps/:id",
+    "PUT /bot/api/v1/admin/apps/:id",
+    "DELETE /bot/api/v1/admin/apps/:id",
+    "POST /bot/api/v1/admin/apps/:id/reset-token",
+    "POST /bot/api/v1/admin/bots/upgrade",
+    "POST /bot/api/v1/admin/bots/:id/upgrade",
+    "POST /bot/api/v1/bots",
+    "GET /bot/api/v1/bots",
+    "GET /bot/api/v1/bots/:id",
+    "PUT /bot/api/v1/bots/:id",
+    "DELETE /bot/api/v1/bots/:id",
+    "POST /bot/api/v1/bots/:id/start",
+    "POST /bot/api/v1/bots/:id/stop",
+    "POST /bot/api/v1/bots/:id/restart",
+    "GET /bot/api/v1/bots/:id/status",
+    "GET /bot/api/v1/bots/:id/connect",
+    "POST /bot/api/v1/bots/:id/reset-token",
+    "GET /bot/api/v1/bots/:id/skills",
+    "PUT /bot/api/v1/bots/:id/skills/:name",
+    "DELETE /bot/api/v1/bots/:id/skills/:name",
+    "POST /bot/api/v1/bots/:id/channels",
+    "GET /bot/api/v1/bots/:id/channels",
+    "DELETE /bot/api/v1/bots/:id/channels/:channel",
+    "GET /bot/api/v1/bots/:id/channels/:channel/pairing",
+    "POST /bot/api/v1/bots/:id/channels/:channel/pairing/approve",
+    "POST /bot/api/v1/bots/:id/channels/:channel/pairing/revoke",
+    "GET /bot/api/v1/bots/:id/channels/:channel/pairing/users",
+    "GET /bot/api/v1/bots/:id/devices",
+    "POST /bot/api/v1/bots/:id/devices/:request_id/approve",
+    "DELETE /bot/api/v1/bots/:id/devices/:device_id",
+    "GET /bot/api/v1/bots/:id/config/models",
+    "POST /bot/api/v1/bots/:id/config/models",
+    "GET /bot/api/v1/bots/:id/config/models/:provider",
+    "PUT /bot/api/v1/bots/:id/config/models/:provider",
+    "DELETE /bot/api/v1/bots/:id/config/models/:provider",
+    "GET /bot/api/v1/bots/:id/config/defaults",
+    "PUT /bot/api/v1/bots/:id/config/defaults",
+    "ANY /proxy/:bot_id/*",
+    "GET /health"
+  ]
+}
