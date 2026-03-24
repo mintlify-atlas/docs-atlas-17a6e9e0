@@ -320,7 +320,7 @@ Once ClawHost is running via any of the options above, follow these steps to pro
     Starting a bot provisions a Kubernetes Deployment and Service for it:
 
     ```bash
-    curl -s -X POST http://localhost:18080/bot/api/v1/bots/$BOT_ID/start \
+    curl -s -X POST http://localhost:18080/bot/api/v1/bots/<bot-id>/start \
       -H "Authorization: Bearer $API_TOKEN"
     ```
   </Step>
@@ -329,7 +329,7 @@ Once ClawHost is running via any of the options above, follow these steps to pro
     Poll the status endpoint until the bot reports as running:
 
     ```bash
-    curl -s http://localhost:18080/bot/api/v1/bots/$BOT_ID/status \
+    curl -s http://localhost:18080/bot/api/v1/bots/<bot-id>/status \
       -H "Authorization: Bearer $API_TOKEN"
     ```
   </Step>
@@ -338,7 +338,7 @@ Once ClawHost is running via any of the options above, follow these steps to pro
     Route requests to your bot through ClawHost's built-in HTTP/WebSocket proxy:
 
     ```bash
-    curl http://localhost:18080/proxy/$BOT_ID/
+    curl http://localhost:18080/proxy/<bot-id>/
     ```
 
     The proxy also supports WebSocket connections on the same path pattern.
@@ -350,17 +350,17 @@ Once ClawHost is running via any of the options above, follow these steps to pro
 <CodeGroup>
 
 ```bash Stop a bot
-curl -s -X POST http://localhost:18080/bot/api/v1/bots/$BOT_ID/stop \
+curl -s -X POST http://localhost:18080/bot/api/v1/bots/<bot-id>/stop \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
 ```bash Restart a bot
-curl -s -X POST http://localhost:18080/bot/api/v1/bots/$BOT_ID/restart \
+curl -s -X POST http://localhost:18080/bot/api/v1/bots/<bot-id>/restart \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
 ```bash Delete a bot
-curl -s -X DELETE http://localhost:18080/bot/api/v1/bots/$BOT_ID \
+curl -s -X DELETE http://localhost:18080/bot/api/v1/bots/<bot-id> \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 

@@ -18,7 +18,7 @@ GET /bot/api/v1/bots/:id/skills
 Returns all skill names currently present in the bot pod's skills directory.
 
 ```bash
-curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/skills \
+curl -s https://clawhost.example.com/bot/api/v1/bots/<bot-id>/skills \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -48,7 +48,7 @@ Creates or replaces a skill with the given name. The `:name` path parameter beco
 | `content` | string | Yes | Markdown content for the skill's `SKILL.md` file |
 
 ```bash
-curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/skills/code-review \
+curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/<bot-id>/skills/code-review \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -78,7 +78,7 @@ DELETE /bot/api/v1/bots/:id/skills/:name
 Removes the skill directory and all its contents from the pod.
 
 ```bash
-curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/skills/code-review \
+curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/<bot-id>/skills/code-review \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 

@@ -54,7 +54,7 @@ description: 'Get the current status of a bot, including live Kubernetes pod rea
 <RequestExample>
 
 ```bash cURL
-curl -s "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/status" \
+curl -s "http://<host>:18080/bot/api/v1/bots/<bot-id>/status" \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 

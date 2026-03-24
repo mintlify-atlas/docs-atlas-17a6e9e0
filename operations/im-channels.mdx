@@ -44,7 +44,7 @@ POST /bot/api/v1/bots/:id/channels
 <Tabs>
   <Tab title="Telegram">
     ```bash
-    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels \
       -H "Authorization: Bearer $API_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
@@ -56,7 +56,7 @@ POST /bot/api/v1/bots/:id/channels
   </Tab>
   <Tab title="Slack">
     ```bash
-    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels \
       -H "Authorization: Bearer $API_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
@@ -69,7 +69,7 @@ POST /bot/api/v1/bots/:id/channels
   </Tab>
   <Tab title="Discord">
     ```bash
-    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels \
       -H "Authorization: Bearer $API_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
@@ -81,7 +81,7 @@ POST /bot/api/v1/bots/:id/channels
   </Tab>
   <Tab title="Feishu">
     ```bash
-    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels \
       -H "Authorization: Bearer $API_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
@@ -93,7 +93,7 @@ POST /bot/api/v1/bots/:id/channels
   </Tab>
   <Tab title="Teams">
     ```bash
-    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels \
       -H "Authorization: Bearer $API_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
@@ -105,7 +105,7 @@ POST /bot/api/v1/bots/:id/channels
   </Tab>
   <Tab title="LINE">
     ```bash
-    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels \
       -H "Authorization: Bearer $API_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
@@ -136,7 +136,7 @@ GET /bot/api/v1/bots/:id/channels
 Returns the channels currently configured on the running bot pod.
 
 ```bash
-curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels \
+curl -s https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -150,11 +150,11 @@ To remove a specific account within a channel, pass `?account=<name>`. Without t
 
 ```bash
 # Remove entire channel
-curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram \
+curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels/telegram \
   -H "Authorization: Bearer $API_TOKEN"
 
 # Remove a specific account only
-curl -s -X DELETE "https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram?account=secondary" \
+curl -s -X DELETE "https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels/telegram?account=secondary" \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -169,7 +169,7 @@ GET /bot/api/v1/bots/:id/channels/:channel/pairing
 ```
 
 ```bash
-curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram/pairing \
+curl -s https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels/telegram/pairing \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -184,7 +184,7 @@ POST /bot/api/v1/bots/:id/channels/:channel/pairing/approve
 | `code` | string | Yes | Pairing code presented by the user in the channel (e.g., `JDB55KTQ`) |
 
 ```bash
-curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram/pairing/approve \
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels/telegram/pairing/approve \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"code": "JDB55KTQ"}'
@@ -212,7 +212,7 @@ POST /bot/api/v1/bots/:id/channels/:channel/pairing/revoke
 | `user_id` | string | Yes | Channel-specific user ID to revoke (e.g., `1743739674`) |
 
 ```bash
-curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram/pairing/revoke \
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels/telegram/pairing/revoke \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"user_id": "1743739674"}'
@@ -227,7 +227,7 @@ GET /bot/api/v1/bots/:id/channels/:channel/pairing/users
 Returns the list of users who have been approved to interact with the bot on the specified channel.
 
 ```bash
-curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/channels/telegram/pairing/users \
+curl -s https://clawhost.example.com/bot/api/v1/bots/<bot-id>/channels/telegram/pairing/users \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 

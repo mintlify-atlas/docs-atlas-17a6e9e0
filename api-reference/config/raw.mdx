@@ -1,0 +1,203 @@
+---
+title: Raw config
+description: Read and write the full openclaw.json configuration directly on a running bot's pod.
+---
+
+These endpoints provide direct read/write access to the bot's live `openclaw.json` configuration file on the running pod. They are intended for advanced use cases where the structured APIs (model providers, agent defaults, channels) are insufficient.
+
+All routes require `Authorization: Bearer <app_token>`. The bot **must be in `running` status** — these endpoints operate directly on the pod filesystem.
+
+<Warning>
+  Writing invalid JSON or an incompatible config structure may cause the bot to malfunction. Use the structured config endpoints (`/config/models`, `/config/defaults`) for routine changes. Use `/config/raw` only when you need to modify sections not covered by the structured endpoints.
+</Warning>
+
+---
+
+## Get raw config
+
+```
+GET /bot/api/v1/bots/:id/config/raw
+```
+
+Reads the full `openclaw.json` configuration from the bot's running pod and returns it as a JSON object.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+The complete `openclaw.json` content as a JSON object. The top-level keys correspond to OpenClaw config sections:
+
+<ResponseField name="meta" type="object">
+  Metadata: `lastTouchedVersion`, `lastTouchedAt`.
+</ResponseField>
+
+<ResponseField name="models" type="object">
+  Model providers configuration. Contains `mode` (`merge` or `replace`) and a `providers` map.
+</ResponseField>
+
+<ResponseField name="agents" type="object">
+  Agent defaults: `defaults.model.primary`, `defaults.models.fallback`, `defaults.maxConcurrent`.
+</ResponseField>
+
+<ResponseField name="channels" type="object">
+  IM channel configurations keyed by channel name.
+</ResponseField>
+
+<ResponseField name="gateway" type="object">
+  Gateway settings: `port`, `mode`, `auth`, `controlUi`, etc.
+</ResponseField>
+
+<ResponseField name="auth" type="object">
+  Authentication profiles.
+</ResponseField>
+
+<ResponseField name="plugins" type="object">
+  Plugin entries.
+</ResponseField>
+
+<ResponseField name="messages" type="object">
+  Message handling settings.
+</ResponseField>
+
+<ResponseField name="commands" type="object">
+  Command configuration.
+</ResponseField>
+
+<ResponseField name="hooks" type="object">
+  Internal hooks configuration.
+</ResponseField>
+
+### Example
+
+```bash
+curl http://<host>:18080/bot/api/v1/bots/<bot-id>/config/raw \
+  -H "Authorization: Bearer <app-token>"
+```
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "meta": {
+      "lastTouchedVersion": "1.2.3",
+      "lastTouchedAt": "2026-03-24T10:00:00Z"
+    },
+    "models": {
+      "mode": "merge",
+      "providers": {
+        "anthropic": {
+          "apiKey": "sk-ant-...",
+          "api": "anthropic-messages",
+          "models": [
+            {
+              "id": "claude-sonnet-4-20250514",
+              "name": "Claude Sonnet 4",
+              "input": ["text", "image"],
+              "contextWindow": 200000,
+              "maxTokens": 8192
+            }
+          ]
+        }
+      }
+    },
+    "agents": {
+      "defaults": {
+        "model": {
+          "primary": "anthropic/claude-sonnet-4-20250514"
+        }
+      }
+    },
+    "gateway": {
+      "port": 18789,
+      "mode": "remote",
+      "auth": {
+        "mode": "token",
+        "token": "..."
+      }
+    }
+  }
+}
+```
+
+---
+
+## Update raw config
+
+```
+PUT /bot/api/v1/bots/:id/config/raw
+```
+
+Writes config to the bot's running pod. By default, the provided JSON is **merged** onto the existing config (shallow merge at the top-level key level). Pass `?mode=replace` to fully replace the config.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Query parameters
+
+<ParamField query="mode" type="string">
+  Write mode: `merge` (default) or `replace`.
+
+  - `merge` — reads the current config from the pod, then overwrites top-level keys that are present in the request body. Unspecified keys are preserved.
+  - `replace` — writes the request body as the complete new config, discarding all existing content.
+</ParamField>
+
+### Request body
+
+Any valid `openclaw.json` content as a JSON object. In `merge` mode you can provide only the sections you want to change.
+
+### Response
+
+The final config written to the pod (after merge, if applicable).
+
+### Example: merge gateway settings
+
+```bash
+curl -X PUT "http://<host>:18080/bot/api/v1/bots/<bot-id>/config/raw?mode=merge" \
+  -H "Authorization: Bearer <app-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gateway": {
+      "controlUi": {
+        "dangerouslyDisableDeviceAuth": false
+      }
+    }
+  }'
+```
+
+### Example: full config replace
+
+```bash
+curl -X PUT "http://<host>:18080/bot/api/v1/bots/<bot-id>/config/raw?mode=replace" \
+  -H "Authorization: Bearer <app-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": {
+      "mode": "merge",
+      "providers": {
+        "anthropic": {
+          "apiKey": "sk-ant-...",
+          "api": "anthropic-messages"
+        }
+      }
+    },
+    "agents": {
+      "defaults": {
+        "model": {
+          "primary": "anthropic/claude-sonnet-4-20250514"
+        }
+      }
+    }
+  }'
+```
+
+<Note>
+  Changes written via this endpoint take effect immediately in the running pod. They are **not** persisted to the ClawHost database — the next time the bot starts, the config will be regenerated from the database. To persist changes, also update them via the structured config endpoints.
+</Note>

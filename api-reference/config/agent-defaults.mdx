@@ -55,8 +55,8 @@ Returns the current default model settings for the bot's agents.
 </ResponseField>
 
 ```bash
-curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/config/defaults \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl http://<host>:18080/bot/api/v1/bots/<bot-id>/config/defaults \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ```json
@@ -103,8 +103,8 @@ Sets the default model(s) for the bot's agents. Changes are persisted to the dat
 </ResponseField>
 
 ```bash
-curl -X PUT https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/config/defaults \
-  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+curl -X PUT http://<host>:18080/bot/api/v1/bots/<bot-id>/config/defaults \
+  -H "Authorization: Bearer <app-token>" \
   -H "Content-Type: application/json" \
   -d '{
     "primary_model": "anthropic/claude-sonnet-4-20250514",

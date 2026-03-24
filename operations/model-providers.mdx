@@ -45,7 +45,7 @@ GET /bot/api/v1/bots/:id/config/models
 Returns all configured providers as a map keyed by provider name.
 
 ```bash
-curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models \
+curl -s https://clawhost.example.com/bot/api/v1/bots/<bot-id>/config/models \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -79,7 +79,7 @@ The `name` field is required and must be unique for this bot. If the bot is runn
 <Tabs>
   <Tab title="Anthropic">
     ```bash
-    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models \
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/config/models \
       -H "Authorization: Bearer $API_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
@@ -99,7 +99,7 @@ The `name` field is required and must be unique for this bot. If the bot is runn
   </Tab>
   <Tab title="OpenAI">
     ```bash
-    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models \
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/config/models \
       -H "Authorization: Bearer $API_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
@@ -120,7 +120,7 @@ The `name` field is required and must be unique for this bot. If the bot is runn
   </Tab>
   <Tab title="OpenAI-compatible">
     ```bash
-    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models \
+    curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/config/models \
       -H "Authorization: Bearer $API_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
@@ -150,7 +150,7 @@ GET /bot/api/v1/bots/:id/config/models/:provider
 ```
 
 ```bash
-curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models/anthropic \
+curl -s https://clawhost.example.com/bot/api/v1/bots/<bot-id>/config/models/anthropic \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -163,7 +163,7 @@ PUT /bot/api/v1/bots/:id/config/models/:provider
 Replaces the full provider configuration. All fields are overwritten.
 
 ```bash
-curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models/anthropic \
+curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/<bot-id>/config/models/anthropic \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -194,7 +194,7 @@ DELETE /bot/api/v1/bots/:id/config/models/:provider
 ```
 
 ```bash
-curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/models/anthropic \
+curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/<bot-id>/config/models/anthropic \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -209,7 +209,7 @@ GET /bot/api/v1/bots/:id/config/defaults
 ```
 
 ```bash
-curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/defaults \
+curl -s https://clawhost.example.com/bot/api/v1/bots/<bot-id>/config/defaults \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -234,7 +234,7 @@ PUT /bot/api/v1/bots/:id/config/defaults
 | `fallback_model` | string | Fallback model used when the primary is unavailable |
 
 ```bash
-curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/config/defaults \
+curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/<bot-id>/config/defaults \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

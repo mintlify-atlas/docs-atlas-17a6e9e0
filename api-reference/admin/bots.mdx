@@ -1,0 +1,305 @@
+---
+title: Admin bots
+description: Admin-only endpoints for creating, listing, starting, stopping, deleting, and bulk-restarting bots across all apps.
+---
+
+These endpoints give administrators direct control over bots regardless of which app owns them. All routes require the admin token.
+
+```bash
+Authorization: Bearer <admin-token>
+```
+
+<Note>
+  Unlike the app-scoped bot endpoints under `/bot/api/v1/bots`, these admin endpoints bypass app ownership checks and can operate on any bot in the system.
+</Note>
+
+---
+
+## Verify admin token
+
+```
+GET /bot/api/v1/admin/verify
+```
+
+Verifies that the provided admin token is valid. Useful for testing auth from CI or a health-check script.
+
+### Example
+
+```bash
+curl http://<host>:18080/bot/api/v1/admin/verify \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+```json
+{
+  "code": 0,
+  "message": "success"
+}
+```
+
+---
+
+## Get global config
+
+```
+GET /bot/api/v1/admin/config
+```
+
+Returns global ClawHost configuration values exposed to the admin UI — currently the `bot_domain_template`.
+
+### Response
+
+<ResponseField name="bot_domain_template" type="string">
+  The configured bot domain template string (e.g., `https://{bot_id}.clawhost.ai`), sourced from `domain.bot_domain_template` in `config.toml`.
+</ResponseField>
+
+### Example
+
+```bash
+curl http://<host>:18080/bot/api/v1/admin/config \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "bot_domain_template": "https://{bot_id}.clawhost.ai"
+  }
+}
+```
+
+---
+
+## Create bot (admin)
+
+```
+POST /bot/api/v1/admin/bots
+```
+
+Creates a bot directly under a specified app, bypassing the app token auth flow. Useful for provisioning bots from admin tooling.
+
+### Request body
+
+<ParamField body="app_id" type="string" required>
+  ID of the app the bot should belong to.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Display name for the bot.
+</ParamField>
+
+<ParamField body="user_id" type="string">
+  User ID to associate with the bot. Defaults to `"admin"` if not provided.
+</ParamField>
+
+<ParamField body="slug" type="string">
+  Custom URL slug for subdomain routing. Auto-generated if omitted.
+</ParamField>
+
+### Response
+
+The created Bot object.
+
+<ResponseField name="id" type="string">
+  Bot UUID.
+</ResponseField>
+
+<ResponseField name="app_id" type="string">
+  App this bot belongs to.
+</ResponseField>
+
+<ResponseField name="user_id" type="string">
+  User ID associated with the bot.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Bot display name.
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  URL slug used for subdomain routing.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Initial status: `created`.
+</ResponseField>
+
+<ResponseField name="access_token" type="string">
+  Bot access token (32-character hex string) for CLI and token auth.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 creation timestamp.
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST http://<host>:18080/bot/api/v1/admin/bots \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "user_id": "user-001",
+    "name": "my-bot",
+    "slug": "my-bot"
+  }'
+```
+
+---
+
+## List all bots (admin)
+
+```
+GET /bot/api/v1/admin/bots
+```
+
+Returns all bots across all apps, ordered by creation time (newest first). Unlike the app-scoped `GET /bots`, this endpoint returns the full system inventory.
+
+### Response
+
+An array of Bot objects. See [Create bot (admin)](#create-bot-admin) for field descriptions.
+
+### Example
+
+```bash
+curl http://<host>:18080/bot/api/v1/admin/bots \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+---
+
+## Start bot (admin)
+
+```
+POST /bot/api/v1/admin/bots/:id/start
+```
+
+Starts a bot by creating its Kubernetes Deployment and Service. Equivalent to `POST /bot/api/v1/bots/:id/start` but does not require the owning app's token.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+The updated Bot object with `status: "starting"` and the assigned `endpoint`.
+
+### Example
+
+```bash
+curl -X POST http://<host>:18080/bot/api/v1/admin/bots/<bot-id>/start \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+---
+
+## Stop bot (admin)
+
+```
+POST /bot/api/v1/admin/bots/:id/stop
+```
+
+Stops a running bot by deleting its Kubernetes Deployment and Service.
+
+<Warning>
+  The bot must be in `running` status. Attempting to stop a bot that is not running returns a `400` error.
+</Warning>
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+The updated Bot object with `status: "stopped"` and an empty `endpoint`.
+
+### Example
+
+```bash
+curl -X POST http://<host>:18080/bot/api/v1/admin/bots/<bot-id>/stop \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+---
+
+## Delete bot (admin)
+
+```
+DELETE /bot/api/v1/admin/bots/:id
+```
+
+Deletes a bot record from the database. If the bot is currently running, its Kubernetes Deployment and Service are deleted first.
+
+<Warning>
+  This operation is irreversible. Bot configuration and PVC data under `{base_path}/{bot_id}/` are not automatically cleaned up.
+</Warning>
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  Bot UUID.
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  `"bot deleted"`
+</ResponseField>
+
+### Example
+
+```bash
+curl -X DELETE http://<host>:18080/bot/api/v1/admin/bots/<bot-id> \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+---
+
+## Restart all bots
+
+```
+POST /bot/api/v1/admin/bots/restart
+```
+
+Triggers a full pod spec rebuild for all running bots. Unlike a rolling update (which only changes the image), this recreates the entire Deployment and Service from the current config in the database.
+
+This is useful after changing global OpenClaw settings (e.g., `[openclaw]` config section) that require a full pod spec rebuild to take effect.
+
+<Info>
+  This operation runs **asynchronously**. The endpoint returns immediately with the total count; bots are restarted sequentially in the background (one at a time to avoid memory pressure on the node).
+</Info>
+
+### Response
+
+<ResponseField name="total" type="integer">
+  Number of running bots that were queued for restart.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  `"restart initiated in background"`
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST http://<host>:18080/bot/api/v1/admin/bots/restart \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "total": 12,
+    "message": "restart initiated in background"
+  }
+}
+```

@@ -32,7 +32,7 @@ The updated Bot object with `status: "running"` and a populated `endpoint`.
 <RequestExample>
 
 ```bash cURL
-curl -s -X POST "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/start" \
+curl -s -X POST "http://<host>:18080/bot/api/v1/bots/<bot-id>/start" \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -74,7 +74,7 @@ The updated Bot object with `status: "stopped"` and an empty `endpoint`.
 <RequestExample>
 
 ```bash cURL
-curl -s -X POST "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/stop" \
+curl -s -X POST "http://<host>:18080/bot/api/v1/bots/<bot-id>/stop" \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -116,7 +116,7 @@ The Bot object. The restart is processed synchronously; the pod replacement itse
 <RequestExample>
 
 ```bash cURL
-curl -s -X POST "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/restart" \
+curl -s -X POST "http://<host>:18080/bot/api/v1/bots/<bot-id>/restart" \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -170,7 +170,7 @@ Generates a new cryptographically secure `access_token` for the bot, invalidatin
 <RequestExample>
 
 ```bash cURL
-curl -s -X POST "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/reset-token" \
+curl -s -X POST "http://<host>:18080/bot/api/v1/bots/<bot-id>/reset-token" \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -240,7 +240,7 @@ Returns connection details for a running bot, including the internal service end
 <RequestExample>
 
 ```bash cURL
-curl -s "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/connect" \
+curl -s "http://<host>:18080/bot/api/v1/bots/<bot-id>/connect" \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -306,7 +306,7 @@ Returns `400` if the bot is not running. Returns a `skipped` status if the bot i
 <RequestExample>
 
 ```bash cURL
-curl -s -X POST "https://api.clawhost.ai/bot/api/v1/bots/$BOT_ID/upgrade" \
+curl -s -X POST "http://<host>:18080/bot/api/v1/bots/<bot-id>/upgrade" \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"image": "1panel/openclaw:v2.1.0"}'

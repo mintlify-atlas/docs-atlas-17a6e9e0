@@ -96,6 +96,21 @@ Requires admin token.
 | `DELETE` | `/bot/api/v1/admin/apps/:id` | [Delete app](/api-reference/admin/apps#delete-app) |
 | `POST` | `/bot/api/v1/admin/apps/:id/reset-token` | [Reset app API token](/api-reference/admin/apps#reset-app-api-token) |
 
+### Admin: Bots
+
+Requires admin token. Provides cross-app bot management.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/bot/api/v1/admin/verify` | [Verify admin token](/api-reference/admin/bots#verify-admin-token) |
+| `GET` | `/bot/api/v1/admin/config` | [Get global config](/api-reference/admin/bots#get-global-config) |
+| `POST` | `/bot/api/v1/admin/bots` | [Create bot (admin)](/api-reference/admin/bots#create-bot-admin) |
+| `GET` | `/bot/api/v1/admin/bots` | [List all bots (admin)](/api-reference/admin/bots#list-all-bots-admin) |
+| `POST` | `/bot/api/v1/admin/bots/:id/start` | [Start bot (admin)](/api-reference/admin/bots#start-bot-admin) |
+| `POST` | `/bot/api/v1/admin/bots/:id/stop` | [Stop bot (admin)](/api-reference/admin/bots#stop-bot-admin) |
+| `DELETE` | `/bot/api/v1/admin/bots/:id` | [Delete bot (admin)](/api-reference/admin/bots#delete-bot-admin) |
+| `POST` | `/bot/api/v1/admin/bots/restart` | [Restart all bots](/api-reference/admin/bots#restart-all-bots) |
+
 ### Admin: Bot upgrade
 
 Requires admin token.
@@ -177,6 +192,26 @@ Requires app token.
 | --- | --- | --- |
 | `GET` | `/bot/api/v1/bots/:id/config/defaults` | Get agent defaults |
 | `PUT` | `/bot/api/v1/bots/:id/config/defaults` | Set agent defaults |
+
+### Raw config
+
+Requires app token. Bot must be running.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/bot/api/v1/bots/:id/config/raw` | [Read live openclaw.json](/api-reference/config/raw#get-raw-config) |
+| `PUT` | `/bot/api/v1/bots/:id/config/raw` | [Write live openclaw.json](/api-reference/config/raw#update-raw-config) |
+
+### WeChat
+
+Requires app token. Bot must be running.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/bot/api/v1/bots/:id/channels/wechat/login` | Start QR login |
+| `GET` | `/bot/api/v1/bots/:id/channels/wechat/login/status` | Poll login status |
+| `GET` | `/bot/api/v1/bots/:id/channels/wechat/accounts` | List WeChat accounts |
+| `DELETE` | `/bot/api/v1/bots/:id/channels/wechat/accounts/:account_id` | Remove WeChat account |
 
 ### Proxy
 

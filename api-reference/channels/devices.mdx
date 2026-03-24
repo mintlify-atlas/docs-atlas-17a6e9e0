@@ -101,8 +101,8 @@ Returns all pending and paired devices for the bot. Optionally filter by status 
 </ResponseField>
 
 ```bash
-curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/devices \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl http://<host>:18080/bot/api/v1/bots/<bot-id>/devices \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ```json
@@ -136,8 +136,8 @@ curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/devices \
 ### Filter pending CLI devices
 
 ```bash
-curl "https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/devices?status=pending&client_mode=cli" \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl "http://<host>:18080/bot/api/v1/bots/<bot-id>/devices?status=pending&client_mode=cli" \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ---
@@ -175,8 +175,8 @@ Approves a pending device pairing request. After approval, the device can authen
 </ResponseField>
 
 ```bash
-curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/devices/req_abc123/approve \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl -X POST http://<host>:18080/bot/api/v1/bots/<bot-id>/devices/req_abc123/approve \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ```json
@@ -232,8 +232,8 @@ Revokes all tokens for the specified device. Active connections from the device 
 </ResponseField>
 
 ```bash
-curl -X DELETE https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/devices/dev_xyz789 \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl -X DELETE http://<host>:18080/bot/api/v1/bots/<bot-id>/devices/dev_xyz789 \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ```json

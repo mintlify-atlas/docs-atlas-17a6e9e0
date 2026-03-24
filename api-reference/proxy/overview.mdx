@@ -22,13 +22,13 @@ The wildcard path (`*`) is forwarded verbatim to the bot. Any HTTP method is sup
 
 ```bash
 # Forward an HTTP GET to the bot's root
-curl https://api.clawhost.ai/proxy/YOUR_BOT_ID/
+curl http://<host>:18080/proxy/<bot-id>/
 
 # Forward to a specific bot API path
-curl https://api.clawhost.ai/proxy/YOUR_BOT_ID/v1/chat
+curl http://<host>:18080/proxy/<bot-id>/v1/chat
 
 # Forward using the bot slug
-curl https://api.clawhost.ai/proxy/a1b2c3d4/
+curl http://<host>:18080/proxy/a1b2c3d4/
 ```
 
 ---
@@ -130,10 +130,10 @@ WebSocket connections are detected automatically when the request includes an `U
 
 ```bash
 # Connect to the bot gateway WebSocket using wscat
-wscat -c "wss://api.clawhost.ai/proxy/YOUR_BOT_ID/v1/ws"
+wscat -c "ws://<host>:18080/proxy/<bot-id>/v1/ws"
 
 # With bot access token for gateway auth
-wscat -c "wss://api.clawhost.ai/proxy/YOUR_BOT_ID/v1/ws" \
+wscat -c "ws://<host>:18080/proxy/<bot-id>/v1/ws" \
   -H "Authorization: Bearer YOUR_BOT_ACCESS_TOKEN"
 ```
 

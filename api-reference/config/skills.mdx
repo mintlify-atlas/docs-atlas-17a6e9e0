@@ -51,8 +51,8 @@ Returns the names of all skills currently installed on the bot pod.
 </ResponseField>
 
 ```bash
-curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/skills \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl http://<host>:18080/bot/api/v1/bots/<bot-id>/skills \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ```json
@@ -100,8 +100,8 @@ Creates or replaces the `SKILL.md` file for the named skill. If the skill direct
 </ResponseField>
 
 ```bash
-curl -X PUT https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/skills/code-review \
-  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+curl -X PUT http://<host>:18080/bot/api/v1/bots/<bot-id>/skills/code-review \
+  -H "Authorization: Bearer <app-token>" \
   -H "Content-Type: application/json" \
   -d '{
     "content": "# Code Review Skill\n\nYou are a thorough code reviewer. When asked to review code:\n\n1. Check for correctness and edge cases.\n2. Identify potential security issues.\n3. Suggest improvements for readability and performance.\n4. Provide specific, actionable feedback.\n"
@@ -146,8 +146,8 @@ Removes the skill directory and all its files from the bot pod. The change takes
 </ResponseField>
 
 ```bash
-curl -X DELETE https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/skills/code-review \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl -X DELETE http://<host>:18080/bot/api/v1/bots/<bot-id>/skills/code-review \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ```json

@@ -84,6 +84,7 @@
             "group": "Admin",
             "pages": [
               "api-reference/admin/apps",
+              "api-reference/admin/bots",
               "api-reference/admin/bot-upgrade"
             ]
           },
@@ -104,7 +105,8 @@
             "pages": [
               "api-reference/config/model-providers",
               "api-reference/config/agent-defaults",
-              "api-reference/config/skills"
+              "api-reference/config/skills",
+              "api-reference/config/raw"
             ]
           },
           {

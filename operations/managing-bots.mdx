@@ -58,7 +58,7 @@ PUT /bot/api/v1/bots/:id
 Updatable fields: `name`, `slug`, `config`, `expires_at`. If the bot is running and `config` is updated, the new config is synced to the pod asynchronously.
 
 ```bash
-curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/$BOT_ID \
+curl -s -X PUT https://clawhost.example.com/bot/api/v1/bots/<bot-id> \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "renamed-bot"}'
@@ -73,7 +73,7 @@ POST /bot/api/v1/bots/:id/start
 Creates a Kubernetes **Deployment** and **Service** for the bot. The bot transitions to `running` status and an `endpoint` is recorded. Bot config is written to the pod asynchronously after the K8s resources are created.
 
 ```bash
-curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/start \
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/start \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -90,7 +90,7 @@ POST /bot/api/v1/bots/:id/stop
 Deletes the Kubernetes Deployment and Service. The bot's data on the shared PVC is preserved. Status transitions to `stopped`.
 
 ```bash
-curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/stop \
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/stop \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -103,7 +103,7 @@ POST /bot/api/v1/bots/:id/restart
 Performs a rolling replacement of the Deployment spec without downtime, then recreates the Service to pick up any port changes. Config is synced to the new pod after the restart completes.
 
 ```bash
-curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/restart \
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/restart \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -142,7 +142,7 @@ If the bot's recorded status is `running` but the Kubernetes Deployment no longe
 </Note>
 
 ```bash
-curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/status \
+curl -s https://clawhost.example.com/bot/api/v1/bots/<bot-id>/status \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -155,7 +155,7 @@ GET /bot/api/v1/bots/:id/connect
 Returns connection details including the bot's access URL with its token for use in OpenClaw clients.
 
 ```bash
-curl -s https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/connect \
+curl -s https://clawhost.example.com/bot/api/v1/bots/<bot-id>/connect \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -168,7 +168,7 @@ POST /bot/api/v1/bots/:id/reset-token
 Generates a new cryptographically secure `access_token` for the bot, invalidating the previous one. This token is used for CLI, device, and channel authentication against the bot gateway.
 
 ```bash
-curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/$BOT_ID/reset-token \
+curl -s -X POST https://clawhost.example.com/bot/api/v1/bots/<bot-id>/reset-token \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -181,7 +181,7 @@ DELETE /bot/api/v1/bots/:id
 Removes the bot record from the database. If the bot has running K8s resources, stop it first.
 
 ```bash
-curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/$BOT_ID \
+curl -s -X DELETE https://clawhost.example.com/bot/api/v1/bots/<bot-id> \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -198,7 +198,7 @@ POST /bot/api/v1/admin/bots/:id/upgrade
 Requires the admin token. The bot must be in `running` status.
 
 ```bash
-curl -s -X POST https://clawhost.example.com/bot/api/v1/admin/bots/$BOT_ID/upgrade \
+curl -s -X POST https://clawhost.example.com/bot/api/v1/admin/bots/<bot-id>/upgrade \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"image": "1panel/openclaw:latest"}'

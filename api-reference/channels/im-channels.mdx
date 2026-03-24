@@ -106,8 +106,8 @@ Adds or reconfigures an IM channel account on the running bot.
 ### Example: add a Telegram bot
 
 ```bash
-curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels \
-  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+curl -X POST http://<host>:18080/bot/api/v1/bots/<bot-id>/channels \
+  -H "Authorization: Bearer <app-token>" \
   -H "Content-Type: application/json" \
   -d '{
     "channel": "telegram",
@@ -128,8 +128,8 @@ curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels \
 ### Example: add a Slack workspace
 
 ```bash
-curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels \
-  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+curl -X POST http://<host>:18080/bot/api/v1/bots/<bot-id>/channels \
+  -H "Authorization: Bearer <app-token>" \
   -H "Content-Type: application/json" \
   -d '{
     "channel": "slack",
@@ -156,8 +156,8 @@ Returns all configured channel accounts for the bot, read directly from the runn
 </ParamField>
 
 ```bash
-curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl http://<host>:18080/bot/api/v1/bots/<bot-id>/channels \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ---
@@ -188,12 +188,12 @@ Removes an entire channel or, if `?account=` is specified, removes only that spe
 
 ```bash
 # Remove the entire Telegram channel
-curl -X DELETE https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/telegram \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl -X DELETE http://<host>:18080/bot/api/v1/bots/<bot-id>/channels/telegram \
+  -H "Authorization: Bearer <app-token>"
 
 # Remove only the "work" account of a Slack channel
-curl -X DELETE "https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/slack?account=work" \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl -X DELETE "http://<host>:18080/bot/api/v1/bots/<bot-id>/channels/slack?account=work" \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ---
@@ -219,8 +219,8 @@ Returns all pending pairing requests for the channel.
 </ParamField>
 
 ```bash
-curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/telegram/pairing \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl http://<host>:18080/bot/api/v1/bots/<bot-id>/channels/telegram/pairing \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ### Approve a pairing request
@@ -244,8 +244,8 @@ Approves a pending pairing request using the code the user sent to the bot.
 </ParamField>
 
 ```bash
-curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/telegram/pairing/approve \
-  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+curl -X POST http://<host>:18080/bot/api/v1/bots/<bot-id>/channels/telegram/pairing/approve \
+  -H "Authorization: Bearer <app-token>" \
   -H "Content-Type: application/json" \
   -d '{"code": "JDB55KTQ"}'
 ```
@@ -271,8 +271,8 @@ Revokes an existing pairing, preventing the user from interacting with the bot t
 </ParamField>
 
 ```bash
-curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/telegram/pairing/revoke \
-  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+curl -X POST http://<host>:18080/bot/api/v1/bots/<bot-id>/channels/telegram/pairing/revoke \
+  -H "Authorization: Bearer <app-token>" \
   -H "Content-Type: application/json" \
   -d '{"user_id": "1743739674"}'
 ```
@@ -294,8 +294,8 @@ Returns all users who are currently paired with the bot on this channel.
 </ParamField>
 
 ```bash
-curl https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/telegram/pairing/users \
-  -H "Authorization: Bearer YOUR_APP_TOKEN"
+curl http://<host>:18080/bot/api/v1/bots/<bot-id>/channels/telegram/pairing/users \
+  -H "Authorization: Bearer <app-token>"
 ```
 
 ```json
@@ -324,8 +324,8 @@ Initiates a QR code login session. Returns a QR code image URL valid for 5 minut
 </ParamField>
 
 ```bash
-curl -X POST https://api.clawhost.ai/bot/api/v1/bots/YOUR_BOT_ID/channels/wechat/login \
-  -H "Authorization: Bearer YOUR_APP_TOKEN" \
+curl -X POST http://<host>:18080/bot/api/v1/bots/<bot-id>/channels/wechat/login \
+  -H "Authorization: Bearer <app-token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "Work WeChat"}'
 ```
